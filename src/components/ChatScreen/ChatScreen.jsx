@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import useParallax from '../../hooks/useParallax';
 import { getReply } from './getReply';
 import { splitReply, extFor, saveBlock } from './downloadFile';
+import { playReplySound } from './playSound';
 import './ChatScreen.css';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -9,7 +10,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 export default function ChatScreen({
   character = '/resources/Civilight_Eterna.png',
   codename = '',
-  botName = 'Civilight-Eterna',
+  botName = 'Civilight Eterna',
   onHome,                                        // called when the Home bar is pressed
 }) {
   const ref = useParallax();
@@ -76,6 +77,7 @@ export default function ChatScreen({
 
       setConnected(true);
       setMessages((m) => [...m, { id: idRef.current++, role: 'bot', text: reply }]);
+      playReplySound();                          // sound when the bot replies
     } catch {
       setMessages((m) => [
         ...m,

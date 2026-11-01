@@ -11,6 +11,12 @@
   --hop-x: 60%;    /* bigger = further right */
   --hop-y: 9%;     /* bigger = lower */
 
+  /* chibi video above the send button */
+  --dock-w: min(36rem, 48vw);                     /* width of the chat box */
+  --chibi-w: clamp(10rem, 22vw, 18rem);           /* size of the chibi: bigger numbers = bigger chibi */
+  --chibi-right: -4.5rem;                          /* distance from the right edge: bigger = further left */
+  --chibi-bottom: calc(7% + 5.6rem);              /* sits just above the send button: bigger = higher */
+
   /* chat colors, same family as the session menu bars */
   --chat-bg: rgba(201, 208, 218, 0.12);
   --chat-line: rgba(255, 255, 255, 0.18);
@@ -71,7 +77,6 @@
   background: linear-gradient(to top, #000 10%, rgba(0, 0, 0, 0));
 }
 
-/* ---------- file-created icon that hops near the character's head ---------- */
 /* ---------- file icon that hops near the character's head until it is clicked ---------- */
 .chat__hop {
   position: absolute;
@@ -152,7 +157,7 @@
   top: 7%;
   bottom: 7%;
   right: -24px;                      /* a little off screen, so parallax never shows a gap */
-  width: min(36rem, 48vw);
+  width: var(--dock-w);
   transform: translate3d(calc(var(--mx) * 14px), calc(var(--my) * 8px), 0);
   will-change: transform;
 }
@@ -175,6 +180,50 @@
 @keyframes chat-slide {
   from { transform: translateX(110%); }
   to   { transform: none; }
+}
+
+/* ---------- chibi video: above the send button, shown for 3 seconds per reply ---------- */
+.chat__chibi {
+  position: absolute;
+  z-index: 3;                                    /* in front of the chat box */
+  bottom: var(--chibi-bottom);
+  right: var(--chibi-right);
+  width: var(--chibi-w);
+  translate: calc(var(--mx) * 14px) calc(var(--my) * 8px);   /* moves with the chat box */
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+  mix-blend-mode: screen;                        /* makes the video's black background see-through */
+                                                 /* (delete this line if you use a transparent .webm) */
+}
+
+.chat__chibi video {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  transform-origin: 50% 100%;                 /* squashes and stretches from the feet */
+  animation: chat-chibi-hop 0.6s infinite;
+  animation-play-state: paused;               /* only hops while it is showing */
+}
+
+.chat__chibi--on {
+  opacity: 1;
+}
+
+.chat__chibi--on video {
+  animation-play-state: running;
+}
+
+@keyframes chat-chibi-hop {
+  0%, 100% {
+    transform: translateY(0) scale(1.06, 0.94);            /* squashed on landing */
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+  }
+  50% {
+    transform: translateY(-1.4rem) scale(0.97, 1.03);      /* stretched at the top */
+    animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.3);
+  }
 }
 
 /* ---------- header ---------- */
@@ -401,11 +450,13 @@
     --cc-h: 90%;
     --hop-x: 62%;
     --hop-y: 4%;
+    --dock-w: 90vw;
+    --chibi-w: 8rem;
+    --chibi-bottom: calc(3% + 5.6rem);
   }
 
   .chat__dock {
     top: 38%;
     bottom: 3%;
-    width: 90vw;
   }
 }

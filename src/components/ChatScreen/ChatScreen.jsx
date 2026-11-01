@@ -5,6 +5,9 @@ import { splitReply, extFor, saveBlock } from './downloadFile';
 import { playReplySound } from './playSound';
 import './ChatScreen.css';
 
+const CHIBI_SRC = '/resources/Civilight_Eterna_Sprite.webm';   // your chibi video, in public/resources/
+const CHIBI_MS = 3000;                      // how long the chibi stays on screen after a reply
+
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default function ChatScreen({
@@ -16,6 +19,9 @@ export default function ChatScreen({
   const ref = useParallax();
   const listRef = useRef(null);
   const idRef = useRef(1);                       // next message id
+  const videoRef = useRef(null);                 // the chibi video
+  const chibiTimer = useRef(null);               // hides the chibi after CHIBI_MS
+  const pauseTimer = useRef(null);               // pauses the video once it has faded out
   const [menuOpen, setMenuOpen] = useState(false);
   const [messages, setMessages] = useState(() => [
     {
@@ -28,6 +34,7 @@ export default function ChatScreen({
   const [waiting, setWaiting] = useState(false);   // true while the bot is "typing"
   const [connected, setConnected] = useState(false);
   const [pending, setPending] = useState([]);      // created files not downloaded yet
+  const [chibiOn, setChibiOn] = useState(false);   // true while the chibi is showing
 
   // keep the newest message in view
   useEffect(() => {
@@ -35,9 +42,37 @@ export default function ChatScreen({
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, waiting]);
 
+  // clear the timers when leaving the screen
+  useEffect(
+    () => () => {
+      clearTimeout(chibiTimer.current);
+      clearTimeout(pauseTimer.current);
+    },
+    []
+  );
+
   // clicking anywhere outside the menu closes it
   const handleScreenClick = (e) => {
     if (menuOpen && !e.target.closest('.session__menu')) setMenuOpen(false);
+  };
+
+  // chibi appears and hops, then disappears after CHIBI_MS
+  const showChibi = () => {
+    clearTimeout(chibiTimer.current);
+    clearTimeout(pauseTimer.current);
+
+    const v = videoRef.current;
+    if (v) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    }
+    setChibiOn(true);
+
+    chibiTimer.current = setTimeout(() => {
+      setChibiOn(false);
+      // pause the video once the fade-out has finished
+      pauseTimer.current = setTimeout(() => videoRef.current?.pause(), 450);
+    }, CHIBI_MS);
   };
 
   // clicking the hopping icon downloads every waiting file, then the icon goes away
@@ -77,7 +112,8 @@ export default function ChatScreen({
 
       setConnected(true);
       setMessages((m) => [...m, { id: idRef.current++, role: 'bot', text: reply }]);
-      playReplySound();                          // sound when the bot replies
+      playReplySound();                          // random sound when the bot replies
+      showChibi();                               // chibi hops in for 3 seconds
     } catch {
       setMessages((m) => [
         ...m,
@@ -183,6 +219,19 @@ export default function ChatScreen({
             </button>
           </form>
         </div>
+      </div>
+
+      {/* chibi: sits beside the chat box at the bottom, hops for 3 seconds after each reply */}
+      <div className={`chat__chibi ${chibiOn ? 'chat__chibi--on' : ''}`} aria-hidden="true">
+        <video
+          ref={videoRef}
+          src={CHIBI_SRC}
+          muted
+          loop
+          playsInline
+          preload="auto"
+          disablePictureInPicture
+        />
       </div>
 
       {/* blurs the character and chat while the menu is open (same layer as the session screen) */}

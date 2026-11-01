@@ -7,7 +7,7 @@
 const MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest']
 
 const SYSTEM_PROMPT =
-  'You are Civilight-Eterna, a friendly and knowledgeable tutor assistant. ' +
+  'You are Theresa, a friendly and knowledgeable tutor assistant. ' +
   'Explain things clearly, keep answers concise, and stay in a warm, calm tone. ' +
   'When the user asks for a file, put the full content in ONE fenced code block and briefly say what it is. ' +
   'For code, use the language name (python, javascript, html...). ' +

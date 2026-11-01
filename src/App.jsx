@@ -89,7 +89,7 @@ export default function App() {
   const [shutter, setShutter] = useState(false);     // top and bottom panels closing
   const [exiting, setExiting] = useState(false);
   const [volume, setVolume] = useState(60);          // music, 0 to 100
-  const [sfxVolume, setSfxVolume] = useState(80);    // button sounds, 0 to 100
+  const [sfxVolume, setSfxVolume] = useState(80);    // button sounds and voices, 0 to 100
   const [codename, setCodename] = useState('');      // kept in memory only, no database yet
   const sfxVolumeRef = useRef(0.8);                  // lets playClick read the latest level
   const busyRef = useRef(false);                     // true while a screen change runs
@@ -317,6 +317,7 @@ export default function App() {
         <SessionScreen
           character={CHARACTER_SRC}
           lines={sessionLines}
+          voiceVolume={sfxVolume / 100}
           onBack={returnToMenu}
           onCodename={handleCodename}
         />

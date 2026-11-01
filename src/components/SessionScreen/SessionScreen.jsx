@@ -1,10 +1,25 @@
 import { useEffect, useState } from 'react';
 import useParallax from '../../hooks/useParallax';
+import { playVoice, stopVoice } from '../../hooks/playVoice';
 import './SessionScreen.css';
 
 const CHAR_MS = 45;          // time per letter at normal speed
 const AUTO_DELAY_MS = 1800;  // pause before auto play moves to the next line
 const SPEEDS = [2, 3, 4];
+
+// voice files: line 1 plays line1.mp3, line 2 plays line2.mp3, and so on
+const VOICE_DIR = '/resources/voice';
+// optional: list exact paths to override the numbering, e.g. ['/resources/voice/hello.mp3', ...]
+const VOICES = [
+  '/resources/voice/line1.mp3',
+  '/resources/voice/line2.mp3',
+  '/resources/voice/line3.mp3',
+  '/resources/voice/line4.mp3',
+  '/resources/voice/line5.mp3',
+
+];
+
+const voiceFor = (i) => VOICES[i] ?? `${VOICE_DIR}/line${i + 1}.mp3`;
 
 // returns an error message, or '' when the codename is accepted
 function checkCodename(name) {
@@ -20,6 +35,7 @@ function checkCodename(name) {
 export default function SessionScreen({
   character = '/resources/Civilight_Eterna.png',
   lines = [],
+  voiceVolume = 1,                                // 0 to 1, comes from the SFX slider
   onBack,
   onCodename,                                     // called with the codename once confirmed
 }) {
@@ -29,6 +45,7 @@ export default function SessionScreen({
   const [menuOpen, setMenuOpen] = useState(false);
   const [speed, setSpeed] = useState(1);          // 1 = normal, or 2, 3, 4
   const [auto, setAuto] = useState(false);
+  const [voiceDoneIndex, setVoiceDoneIndex] = useState(-1);   // index of the line whose voice has finished
 
   const [codename, setCodename] = useState('');
   const [error, setError] = useState('');
@@ -41,11 +58,21 @@ export default function SessionScreen({
   const line = lines[index] ?? '';
   const done = shown >= line.length;
   const isLast = index >= lines.length - 1;
+  const voiceDone = voiceDoneIndex === index;        // true once the current line's voice has ended
 
   // the codename box appears once the last line has finished typing
   const promptReady = Boolean(onCodename) && done && isLast;
   // after Cancel, clicking the screen on the last line brings the box back
   const canReopen = Boolean(onCodename) && isLast && boxState === 'hidden' && !confirmed;
+
+  // voice: plays each time the dialog moves to a new line, and stops the previous one
+  useEffect(() => {
+    playVoice(voiceFor(index), {
+      volume: voiceVolume,
+      onEnd: () => setVoiceDoneIndex(index),
+    });
+    return () => stopVoice();
+  }, [index, voiceVolume]);
 
   // typewriter
   useEffect(() => {
@@ -57,9 +84,9 @@ export default function SessionScreen({
     return () => clearInterval(id);
   }, [done, line, speed]);
 
-  // auto play: after a line finishes, wait a moment, then go to the next one
+  // auto play: after the line has typed AND its voice has ended, wait a moment, then go on
   useEffect(() => {
-    if (!auto || !done) return;
+    if (!auto || !done || !voiceDone) return;
 
     const id = setTimeout(() => {
       if (isLast) {
@@ -71,7 +98,7 @@ export default function SessionScreen({
     }, AUTO_DELAY_MS / speed);
 
     return () => clearTimeout(id);
-  }, [auto, done, isLast, speed]);
+  }, [auto, done, voiceDone, isLast, speed]);
 
   const handleScreenClick = (e) => {
     if (e.target.closest('.session__menu, .codename')) return;   // they have their own buttons

@@ -1,9 +1,19 @@
 .loadp {
+  --mx: 0;
+  --my: 0;
+
+  /* parallax strength: how many pixels each layer moves at the screen edge */
+  --px-panel: 14px;    /* the box follows the cursor by this much */
+  --px-text: 6px;      /* the title and subtitle drift a little extra on top of the box */
+  --px-glow-a: 34px;   /* glows move the opposite way */
+  --px-glow-b: 22px;
+
   position: fixed;
   inset: 0;
   z-index: 9000;                       /* above the screens, below the black curtain (9500) */
   display: grid;
   place-items: center;
+  overflow: hidden;
   background: rgba(0, 0, 0, 0.55);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
@@ -26,7 +36,35 @@
   to   { opacity: 0; }
 }
 
+/* ---------- glows behind the box (move opposite to the cursor) ---------- */
+.loadp__glow {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201, 208, 218, 0.28), rgba(201, 208, 218, 0) 70%);
+  pointer-events: none;
+  will-change: translate;
+}
+
+.loadp__glow--a {
+  width: min(34rem, 70vw);
+  aspect-ratio: 1;
+  top: 6%;
+  left: 8%;
+  translate: calc(var(--mx) * var(--px-glow-a) * -1) calc(var(--my) * var(--px-glow-a) * -1);
+}
+
+.loadp__glow--b {
+  width: min(26rem, 55vw);
+  aspect-ratio: 1;
+  bottom: 4%;
+  right: 10%;
+  opacity: 0.8;
+  translate: calc(var(--mx) * var(--px-glow-b) * -1) calc(var(--my) * var(--px-glow-b) * -1);
+}
+
+/* ---------- the box (moves with the cursor) ---------- */
 .loadp__panel {
+  position: relative;
   width: min(28rem, 90vw);
   box-sizing: border-box;
   display: flex;
@@ -36,12 +74,21 @@
   background: rgba(201, 208, 218, 0.14);
   border-top: 1px solid rgba(255, 255, 255, 0.18);
   border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  /* "translate" is separate from the "transform" used by the rise animation, so they don't clash */
+  translate: calc(var(--mx) * var(--px-panel)) calc(var(--my) * var(--px-panel) * 0.6);
+  will-change: translate;
   animation: loadp-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes loadp-rise {
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: none; }
+}
+
+.loadp__title,
+.loadp__sub {
+  /* a little extra movement on top of the box, so the text feels like a separate layer */
+  translate: calc(var(--mx) * var(--px-text)) calc(var(--my) * var(--px-text) * 0.6);
 }
 
 .loadp__title {
@@ -136,4 +183,14 @@
 .loadp__btn:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 3px;
+}
+
+/* people who turned off motion in their system settings get no parallax */
+@media (prefers-reduced-motion: reduce) {
+  .loadp__panel,
+  .loadp__title,
+  .loadp__sub,
+  .loadp__glow {
+    translate: none;
+  }
 }

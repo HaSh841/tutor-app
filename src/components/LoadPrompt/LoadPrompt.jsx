@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import useParallax from '../../hooks/useParallax';
 import { checkCodename } from '../../data/codename';
 import './LoadPrompt.css';
 
@@ -6,6 +7,7 @@ import './LoadPrompt.css';
 // onSubmit(name) must return '' on success, or an error message to show.
 // onClose() is called after the box has faded out.
 export default function LoadPrompt({ onSubmit, onClose }) {
+  const ref = useParallax();                 // sets --mx and --my from the cursor, like the other screens
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -42,6 +44,7 @@ export default function LoadPrompt({ onSubmit, onClose }) {
 
   return (
     <div
+      ref={ref}
       className={`loadp ${leaving ? 'loadp--out' : ''}`}
       role="dialog"
       aria-modal="true"
@@ -51,6 +54,10 @@ export default function LoadPrompt({ onSubmit, onClose }) {
         if (e.key === 'Escape') close();
       }}
     >
+      {/* soft glows behind the box, they drift the opposite way for depth */}
+      <div className="loadp__glow loadp__glow--a" aria-hidden="true" />
+      <div className="loadp__glow loadp__glow--b" aria-hidden="true" />
+
       <form className="loadp__panel" onSubmit={handleSubmit} noValidate>
         <h2 id="loadp-title" className="loadp__title">
           Load Session

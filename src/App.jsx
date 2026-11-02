@@ -5,8 +5,10 @@ import VolumeControl, { VolumeSlider } from './components/VolumeControl/VolumeCo
 import IntroScreen from './components/IntroScreen/IntroScreen';
 import SessionScreen from './components/SessionScreen/SessionScreen';
 import ChatScreen from './components/ChatScreen/ChatScreen';
+import LoadPrompt from './components/LoadPrompt/LoadPrompt';
 import Shutters from './components/Shutters/Shutters';
 import { menuItems } from './data/menuItems';
+import { loadSession, sessionExists } from './data/sessionApi';
 
 const backgrounds = [
   '/resources/theresa1.jpg',
@@ -49,6 +51,7 @@ const sessionLines = [
   'Can you tell me your name doctor?',
 ];
 
+const BOT_NAME = 'Civilight Eterna';                        // the name shown at the top of the chat box
 const CHARACTER_SRC = '/resources/Civilight_Eterna.png';   // used by the session and chat screens
 const CLICK_SFX_SRC = '/resources/sfx1.mp3';
 const BGM_FADE_IN_MS = 2000;
@@ -58,12 +61,21 @@ const EXIT_FADE_MS = 2500;   // black screen and music fade out together
 const MENU_FADE_OUT_MS = 5000;    // menu fades to black while its music fades out
 const SESSION_FADE_IN_MS = 5000;  // session screen fades in while its music fades in
 
+// Load Session from the main menu (menu -> chat screen), same style as New Session
+const LOAD_FADE_OUT_MS = 5000;    // menu fades to black while its music fades out
+const LOAD_FADE_IN_MS = 5000;     // chat screen fades in while its music fades in
+
+// Load Session from inside the chat screen (chat -> chat with the loaded history)
+const CHAT_LOAD_FADE_MS = 1500;   // fade length each way (to black, then back in)
+
 // Back to menu transition (from the session screen)
 const RETURN_FADE_MS = 2500;      // fade length each way (to black, then back in)
 
 // Home transition (from the chat screen)
 const HOME_FADE_OUT_MS = 5000;    // chat fades to black while its music fades out
 const HOME_FADE_IN_MS = 5000;     // main menu fades in while its music fades in
+
+const SERVER_OFFLINE_MSG = 'Cannot reach the session server. Is it running?';
 
 // smooth = true uses an ease-in-out curve so it matches the screen fade
 function fadeVolume(audio, from, to, ms, smooth = false) {
@@ -90,7 +102,10 @@ export default function App() {
   const [exiting, setExiting] = useState(false);
   const [volume, setVolume] = useState(60);          // music, 0 to 100
   const [sfxVolume, setSfxVolume] = useState(80);    // button sounds and voices, 0 to 100
-  const [codename, setCodename] = useState('');      // kept in memory only, no database yet
+  const [codename, setCodename] = useState('');      // the active session's codename
+  const [loadPrompt, setLoadPrompt] = useState(false);   // "enter codename" box on the main menu
+  // key restarts the chat screen; messages is a loaded history (null = brand new chat)
+  const [chatData, setChatData] = useState({ key: 0, messages: null });
   const sfxVolumeRef = useRef(0.8);                  // lets playClick read the latest level
   const busyRef = useRef(false);                     // true while a screen change runs
   const sfxRef = useRef(null);                       // the intro sound
@@ -132,36 +147,47 @@ export default function App() {
     sfxVolumeRef.current = v / 100;
   };
 
-  // menu -> New Session screen
-  const startSession = () => {
-    if (busyRef.current) return;
+  // menu -> session or chat screen:
+  // the menu fades to black while the menu music fades out (outMs),
+  // then the new screen fades in while its music fades in (inMs).
+  // returns false if another screen change is already running
+  const fadeFromMenu = (target, outMs, inMs) => {
+    if (busyRef.current) return false;
     busyRef.current = true;
 
     // 1. the menu fades to black while the menu music fades out, same duration
     const bgm = bgmRef.current;
-    setCurtainMs(MENU_FADE_OUT_MS);
+    setCurtainMs(outMs);
     setCurtain(true);
-    fadeVolume(bgm, bgm.volume, 0, MENU_FADE_OUT_MS, true);
+    fadeVolume(bgm, bgm.volume, 0, outMs, true);
 
     setTimeout(() => {
-      // 2. fully black and silent: swap to the session screen
+      // 2. fully black and silent: swap to the new screen
       bgm.pause();
-      setScreen('session');
+      setScreen(target);
       setView('main');
+      setLoadPrompt(false);
 
-      // 3. the session screen fades in while its music fades in, same duration
+      // 3. the new screen fades in while its music fades in, same duration
       const sessionBgm = sessionBgmRef.current;
       sessionBgm.currentTime = 0;
       sessionBgm.volume = 0;
       sessionBgm.play().catch(() => {});
-      fadeVolume(sessionBgm, 0, volume / 100, SESSION_FADE_IN_MS, true);
-      setCurtainMs(SESSION_FADE_IN_MS);
+      fadeVolume(sessionBgm, 0, volume / 100, inMs, true);
+      setCurtainMs(inMs);
       setCurtain(false);
 
       setTimeout(() => {
         busyRef.current = false;
-      }, SESSION_FADE_IN_MS);
-    }, MENU_FADE_OUT_MS);
+      }, inMs);
+    }, outMs);
+
+    return true;
+  };
+
+  // menu -> New Session screen
+  const startSession = () => {
+    fadeFromMenu('session', MENU_FADE_OUT_MS, SESSION_FADE_IN_MS);
   };
 
   // session or chat screen -> main menu:
@@ -201,9 +227,66 @@ export default function App() {
   const returnToMenu = () => fadeToMenu(RETURN_FADE_MS, RETURN_FADE_MS);   // session screen's Back bar
   const goHome = () => fadeToMenu(HOME_FADE_OUT_MS, HOME_FADE_IN_MS);      // chat screen's Home bar
 
+  // main menu: Load Session -> codename entered -> fetch the history, then fade into the chat screen.
+  // returns '' on success, or an error message for the box to show
+  const handleLoadFromMenu = async (name) => {
+    if (busyRef.current) return 'Please wait a moment.';
+
+    const result = await loadSession(name);
+    if (!result.ok) {
+      return result.notFound ? `No saved session found for ${name}.` : SERVER_OFFLINE_MSG;
+    }
+
+    if (!fadeFromMenu('chat', LOAD_FADE_OUT_MS, LOAD_FADE_IN_MS)) return 'Please wait a moment.';
+
+    // these are ready long before the screen swaps in (the fade takes seconds)
+    setCodename(name);
+    setChatData((d) => ({ key: d.key + 1, messages: result.messages }));
+    return '';
+  };
+
+  // chat screen: Load Session -> codename entered -> fade to black, swap the history, fade back in.
+  // returns '' on success, or an error message for the box to show
+  const handleLoadInChat = async (name) => {
+    if (busyRef.current) return 'Please wait a moment.';
+
+    const result = await loadSession(name);
+    if (!result.ok) {
+      return result.notFound ? `No saved session found for ${name}.` : SERVER_OFFLINE_MSG;
+    }
+
+    if (busyRef.current) return 'Please wait a moment.';
+    busyRef.current = true;
+
+    setCurtainMs(CHAT_LOAD_FADE_MS);
+    setCurtain(true);                              // fade to black
+
+    setTimeout(() => {
+      // black: swap in the loaded session (the chat screen restarts with its intro animation)
+      setCodename(name);
+      setChatData((d) => ({ key: d.key + 1, messages: result.messages }));
+      setCurtain(false);                           // fade back in
+
+      setTimeout(() => {
+        busyRef.current = false;
+      }, CHAT_LOAD_FADE_MS);
+    }, CHAT_LOAD_FADE_MS);
+
+    return '';
+  };
+
+  // new session: is this codename already used by someone? ('' = free)
+  const checkCodenameFree = async (name) => {
+    const exists = await sessionExists(name);
+    return exists === true
+      ? 'That codename is already taken. Pick another, or use Load Session to continue it.'
+      : '';
+  };
+
   // codename confirmed: close the top and bottom panels, then go to the chat screen
   const handleCodename = (name) => {
     setCodename(name);
+    setChatData((d) => ({ key: d.key + 1, messages: null }));   // a brand new chat
     busyRef.current = true;          // ignore everything else while it closes
     setShutter(true);
   };
@@ -238,6 +321,10 @@ export default function App() {
     }
     if (id === 'new-session') {
       startSession();
+      return;
+    }
+    if (id === 'load-session') {     // ask for the codename of a saved session
+      setLoadPrompt(true);
       return;
     }
     if (subMenus[id] || id === 'volume') {   // sub menus and the volume screen
@@ -313,6 +400,11 @@ export default function App() {
         </ParallaxScene>
       )}
 
+      {/* main menu: "enter your codename" box for Load Session */}
+      {screen === 'menu' && loadPrompt && (
+        <LoadPrompt onSubmit={handleLoadFromMenu} onClose={() => setLoadPrompt(false)} />
+      )}
+
       {screen === 'session' && (
         <SessionScreen
           character={CHARACTER_SRC}
@@ -320,11 +412,20 @@ export default function App() {
           voiceVolume={sfxVolume / 100}
           onBack={returnToMenu}
           onCodename={handleCodename}
+          onCheckCodename={checkCodenameFree}
         />
       )}
 
       {screen === 'chat' && (
-        <ChatScreen character={CHARACTER_SRC} codename={codename} onHome={goHome} />
+        <ChatScreen
+          key={chatData.key}
+          character={CHARACTER_SRC}
+          botName={BOT_NAME}
+          codename={codename}
+          initialMessages={chatData.messages}
+          onHome={goHome}
+          onLoadSession={handleLoadInChat}
+        />
       )}
 
       {/* top and bottom panels closing after the codename is confirmed */}

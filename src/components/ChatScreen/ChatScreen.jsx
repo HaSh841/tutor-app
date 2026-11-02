@@ -3,38 +3,52 @@ import useParallax from '../../hooks/useParallax';
 import { getReply } from './getReply';
 import { splitReply, extFor, saveBlock } from './downloadFile';
 import { playReplySound } from './playSound';
+import { saveSession } from '../../data/sessionApi';
+import LoadPrompt from '../LoadPrompt/LoadPrompt';
 import './ChatScreen.css';
 
-const CHIBI_SRC = '/resources/Civilight_Eterna_Sprite.webm';   // your chibi video, in public/resources/
+const CHIBI_SRC = '/resources/chibi.mp4';   // your chibi video, in public/resources/
 const CHIBI_MS = 3000;                      // how long the chibi stays on screen after a reply
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// the next free message id after a loaded history
+const nextIdFor = (list) =>
+  list?.length ? Math.max(...list.map((m) => m.id ?? 0)) + 1 : 1;
 
 export default function ChatScreen({
   character = '/resources/Civilight_Eterna.png',
   codename = '',
   botName = 'Civilight Eterna',
+  initialMessages = null,                        // a loaded session's history, or null for a new chat
   onHome,                                        // called when the Home bar is pressed
+  onLoadSession,                                 // async (codename) => '' on success, or an error message
 }) {
   const ref = useParallax();
   const listRef = useRef(null);
-  const idRef = useRef(1);                       // next message id
+  const idRef = useRef(nextIdFor(initialMessages));   // next message id
   const videoRef = useRef(null);                 // the chibi video
   const chibiTimer = useRef(null);               // hides the chibi after CHIBI_MS
   const pauseTimer = useRef(null);               // pauses the video once it has faded out
   const [menuOpen, setMenuOpen] = useState(false);
-  const [messages, setMessages] = useState(() => [
-    {
-      id: 0,
-      role: 'bot',
-      text: `Hello, ${codename || 'Doctor'}. What would you like to talk about?`,
-    },
-  ]);
+  const [loadOpen, setLoadOpen] = useState(false);       // the "load session" box
+  const [messages, setMessages] = useState(() =>
+    initialMessages?.length
+      ? initialMessages
+      : [
+          {
+            id: 0,
+            role: 'bot',
+            text: `Hello, ${codename || 'Doctor'}. What would you like to talk about?`,
+          },
+        ]
+  );
   const [draft, setDraft] = useState('');
   const [waiting, setWaiting] = useState(false);   // true while the bot is "typing"
   const [connected, setConnected] = useState(false);
   const [pending, setPending] = useState([]);      // created files not downloaded yet
   const [chibiOn, setChibiOn] = useState(false);   // true while the chibi is showing
+  const [saveState, setSaveState] = useState('idle');   // 'idle', 'saved' or 'failed'
 
   // keep the newest message in view
   useEffect(() => {
@@ -54,6 +68,19 @@ export default function ChatScreen({
   // clicking anywhere outside the menu closes it
   const handleScreenClick = (e) => {
     if (menuOpen && !e.target.closest('.session__menu')) setMenuOpen(false);
+  };
+
+  // saves the whole chat on the server under the codename
+  const persist = async (list) => {
+    if (!codename) return;
+    const ok = await saveSession(codename, list);
+    setSaveState(ok ? 'saved' : 'failed');
+  };
+
+  // Load Session bar: close the menu and ask for a codename
+  const openLoad = () => {
+    setMenuOpen(false);
+    setLoadOpen(true);
   };
 
   // chibi appears and hops, then disappears after CHIBI_MS
@@ -110,8 +137,10 @@ export default function ChatScreen({
         .map((p) => ({ lang: p.lang, content: p.content }));
       if (files.length) setPending(files);
 
+      const withReply = [...next, { id: idRef.current++, role: 'bot', text: reply }];
       setConnected(true);
-      setMessages((m) => [...m, { id: idRef.current++, role: 'bot', text: reply }]);
+      setMessages(withReply);
+      persist(withReply);                        // save the chat under the codename
       playReplySound();                          // random sound when the bot replies
       showChibi();                               // chibi hops in for 3 seconds
     } catch {
@@ -123,6 +152,9 @@ export default function ChatScreen({
       setWaiting(false);
     }
   };
+
+  const saveNote =
+    saveState === 'saved' ? ' · Saved' : saveState === 'failed' ? ' · Not saved (server offline)' : '';
 
   return (
     <section ref={ref} className="chat" onClick={handleScreenClick}>
@@ -154,7 +186,12 @@ export default function ChatScreen({
           <header className="chat__header">
             <div>
               <h2 className="chat__title">{botName}</h2>
-              {codename && <p className="chat__sub">Codename: {codename}</p>}
+              {codename && (
+                <p className="chat__sub">
+                  Codename: {codename}
+                  {saveNote}
+                </p>
+              )}
             </div>
             <span className="chat__status">
               {connected ? 'Connected to DWDB-221E' : 'Cant connect to the neural network'}
@@ -221,7 +258,7 @@ export default function ChatScreen({
         </div>
       </div>
 
-      {/* chibi: sits beside the chat box at the bottom, hops for 3 seconds after each reply */}
+      {/* chibi: sits above the send button, hops for 3 seconds after each reply */}
       <div className={`chat__chibi ${chibiOn ? 'chat__chibi--on' : ''}`} aria-hidden="true">
         <video
           ref={videoRef}
@@ -261,8 +298,25 @@ export default function ChatScreen({
             </span>
             <span className="session__bar-label">Home</span>
           </button>
+
+          {/* Load Session: asks for a codename, then loads that chat history */}
+          {onLoadSession && (
+            <button className="session__bar" style={{ '--i': 1 }} onClick={openLoad}>
+              <span className="session__circle">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 4v10" />
+                  <polyline points="8 10 12 14 16 10" />
+                  <path d="M5 18h14" />
+                </svg>
+              </span>
+              <span className="session__bar-label">Load Session</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* codename box for loading a session */}
+      {loadOpen && <LoadPrompt onSubmit={onLoadSession} onClose={() => setLoadOpen(false)} />}
     </section>
   );
 }

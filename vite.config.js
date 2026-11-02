@@ -7,7 +7,14 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
+      host: true,   // lets other computers on your network open the site
       proxy: {
+        // saved sessions
+        '/api/session': {
+          target: 'http://127.0.0.1:3001',
+          changeOrigin: true,
+        },
+        // Gemini
         '/api/ai': {
           target: 'https://generativelanguage.googleapis.com',
           changeOrigin: true,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import useParallax from '../../hooks/useParallax';
 import { playVoice, stopVoice } from '../../hooks/playVoice';
+import { checkCodename } from '../../data/codename';
 import './SessionScreen.css';
 
 const CHAR_MS = 45;          // time per letter at normal speed
@@ -16,21 +17,9 @@ const VOICES = [
   '/resources/voice/line3.mp3',
   '/resources/voice/line4.mp3',
   '/resources/voice/line5.mp3',
-
 ];
 
 const voiceFor = (i) => VOICES[i] ?? `${VOICE_DIR}/line${i + 1}.mp3`;
-
-// returns an error message, or '' when the codename is accepted
-function checkCodename(name) {
-  if (!/^[A-Z]/.test(name)) {
-    return 'Your codename must start with a capital letter.';
-  }
-  if (!/^[A-Z][A-Za-z]*-\d+$/.test(name)) {
-    return 'After the name, add a dash and numbers, like Kal-017.';
-  }
-  return '';
-}
 
 export default function SessionScreen({
   character = '/resources/Civilight_Eterna.png',
@@ -38,6 +27,7 @@ export default function SessionScreen({
   voiceVolume = 1,                                // 0 to 1, comes from the SFX slider
   onBack,
   onCodename,                                     // called with the codename once confirmed
+  onCheckCodename,                                // async (name) => '' if free, or an error message
 }) {
   const ref = useParallax();
   const [index, setIndex] = useState(0);
@@ -49,6 +39,7 @@ export default function SessionScreen({
 
   const [codename, setCodename] = useState('');
   const [error, setError] = useState('');
+  const [checking, setChecking] = useState(false);       // asking the server if the codename is free
   const [confirming, setConfirming] = useState(false);   // showing "are you sure?"
   const [confirmed, setConfirmed] = useState(false);
   // 'auto' = shows by itself after the last line, 'leaving' = fading out, 'hidden' = closed
@@ -123,15 +114,26 @@ export default function SessionScreen({
 
   const pickSpeed = (s) => setSpeed((cur) => (cur === s ? 1 : s));
 
-  // OK button (or Enter): check the codename, then ask "are you sure?"
-  const handleCodenameSubmit = (e) => {
+  // OK button (or Enter): check the codename, make sure nobody has it yet, then ask "are you sure?"
+  const handleCodenameSubmit = async (e) => {
     e.preventDefault();
+    if (checking) return;
+
     const name = codename.trim();
     const problem = checkCodename(name);
     if (problem) {
       setError(problem);
       return;
     }
+
+    setChecking(true);
+    const taken = onCheckCodename ? await onCheckCodename(name) : '';
+    setChecking(false);
+    if (taken) {
+      setError(taken);
+      return;
+    }
+
     setCodename(name);
     setConfirming(true);
   };
@@ -276,8 +278,8 @@ export default function SessionScreen({
                   </p>
 
                   <div className="codename__actions">
-                    <button type="submit" className="codename__ok">
-                      OK
+                    <button type="submit" className="codename__ok" disabled={checking}>
+                      {checking ? '...' : 'OK'}
                     </button>
                     <button
                       type="button"

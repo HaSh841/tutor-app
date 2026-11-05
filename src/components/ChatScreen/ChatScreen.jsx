@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import useParallax from '../../hooks/useParallax';
-import { getReply } from './getReply';
+import { getReply, getLesson } from './getReply';
 import { splitReply, extFor, saveBlock } from './downloadFile';
 import { playReplySound } from './playSound';
 import { saveSession } from '../../data/sessionApi';
+import { getTutor } from '../../data/tutors';
 import LoadPrompt from '../LoadPrompt/LoadPrompt';
 import './ChatScreen.css';
 
-const CHIBI_SRC = '/resources/chibi.mp4';   // your chibi video, in public/resources/
 const CHIBI_MS = 3000;                      // how long the chibi stays on screen after a reply
+
+// Tutoring Mode transition (keep these in step with the 0.8s slide in ChatScreen.css)
+const SLIDE_MS = 800;                       // a box sliding out of or into the screen
+const SHUTTER_MS = 900;                     // the top and bottom panels closing, then opening
+const ENTER_MS = SLIDE_MS + 300;            // slide in, including the small delay of the lower box
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -17,9 +22,8 @@ const nextIdFor = (list) =>
   list?.length ? Math.max(...list.map((m) => m.id ?? 0)) + 1 : 1;
 
 export default function ChatScreen({
-  character = '/resources/Civilight_Eterna.png',
+  tutor = getTutor(),                            // the chosen tutor (see data/tutors.js)
   codename = '',
-  botName = 'Civilight Eterna',
   initialMessages = null,                        // a loaded session's history, or null for a new chat
   onHome,                                        // called when the Home bar is pressed
   onLoadSession,                                 // async (codename) => '' on success, or an error message
@@ -30,6 +34,9 @@ export default function ChatScreen({
   const videoRef = useRef(null);                 // the chibi video
   const chibiTimer = useRef(null);               // hides the chibi after CHIBI_MS
   const pauseTimer = useRef(null);               // pauses the video once it has faded out
+  const timers = useRef([]);                     // timers of the Tutoring Mode transition
+  const transRef = useRef(false);                // true while the Tutoring Mode transition runs
+  const tutorIdRef = useRef(1);                  // next tutoring message id
   const [menuOpen, setMenuOpen] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);       // the "load session" box
   const [messages, setMessages] = useState(() =>
@@ -39,7 +46,7 @@ export default function ChatScreen({
           {
             id: 0,
             role: 'bot',
-            text: `Hello, ${codename || 'Doctor'}. What would you like to talk about?`,
+            text: tutor.greeting(codename),
           },
         ]
   );
@@ -49,6 +56,20 @@ export default function ChatScreen({
   const [pending, setPending] = useState([]);      // created files not downloaded yet
   const [chibiOn, setChibiOn] = useState(false);   // true while the chibi is showing
   const [saveState, setSaveState] = useState('idle');   // 'idle', 'saved' or 'failed'
+
+  // ---------- Tutoring Mode ----------
+  const [mode, setMode] = useState('chat');              // 'chat' or 'tutor'
+  // each box is 'intro' (first start), 'hidden', 'enter', 'shown' or 'leave'
+  const [chatState, setChatState] = useState('intro');
+  const [tutorState, setTutorState] = useState('hidden');
+  const [curtain, setCurtain] = useState('off');         // 'off', 'close' or 'open'
+  const [lesson, setLesson] = useState(null);            // the current lesson, or null
+  const [lessonN, setLessonN] = useState(0);             // changes with each lesson (resets the scroll)
+  const [tutorHistory, setTutorHistory] = useState([]);  // what the tutor and the user said
+  const [tutorDraft, setTutorDraft] = useState('');
+  const [tutorWaiting, setTutorWaiting] = useState(false);
+  const [tutorError, setTutorError] = useState('');
+  const [copied, setCopied] = useState(false);
 
   // keep the newest message in view
   useEffect(() => {
@@ -61,6 +82,7 @@ export default function ChatScreen({
     () => () => {
       clearTimeout(chibiTimer.current);
       clearTimeout(pauseTimer.current);
+      timers.current.forEach(clearTimeout);
     },
     []
   );
@@ -83,8 +105,92 @@ export default function ChatScreen({
     setLoadOpen(true);
   };
 
-  // chibi appears and hops, then disappears after CHIBI_MS
+  // runs fn after ms, and remembers the timer so it can be cleared
+  const later = (fn, ms) => {
+    timers.current.push(setTimeout(fn, ms));
+  };
+
+  // Tutoring Mode bar: the current box slides out to the right, the top and bottom panels
+  // close and open, then the other screen slides in from the right
+  const toggleTutor = () => {
+    setMenuOpen(false);
+    if (transRef.current) return;                 // ignore clicks while it is running
+    transRef.current = true;
+
+    const toTutor = mode === 'chat';
+    const setOld = toTutor ? setChatState : setTutorState;
+    const setNew = toTutor ? setTutorState : setChatState;
+
+    setOld('leave');                                          // 1. the current box slides out
+
+    later(() => setCurtain('close'), SLIDE_MS);               // 2. the panels close
+
+    later(() => {                                             // 3. fully black: swap the screens
+      setOld('hidden');
+      setMode(toTutor ? 'tutor' : 'chat');
+      setCurtain('open');                                     //    the panels open again
+    }, SLIDE_MS + SHUTTER_MS);
+
+    later(() => {                                             // 4. open: the new box slides in
+      setCurtain('off');
+      setNew('enter');
+    }, SLIDE_MS + SHUTTER_MS * 2);
+
+    later(() => {
+      setNew('shown');
+      transRef.current = false;
+    }, SLIDE_MS + SHUTTER_MS * 2 + ENTER_MS);
+  };
+
+  // asks the tutor to teach something; the answer fills the code box and the flow box
+  const handleTutorSend = async (e) => {
+    e.preventDefault();
+    const text = tutorDraft.trim();
+    if (!text || tutorWaiting) return;
+
+    const before = tutorHistory;
+    const next = [...before, { id: tutorIdRef.current++, role: 'user', text }];
+    setTutorHistory(next);
+    setTutorDraft('');
+    setTutorWaiting(true);
+    setTutorError('');
+
+    try {
+      const result = await getLesson(next, tutor);
+      setLesson(result);
+      setLessonN((n) => n + 1);
+      setTutorHistory([
+        ...next,
+        { id: tutorIdRef.current++, role: 'bot', text: JSON.stringify(result) },
+      ]);
+      setConnected(true);
+      playReplySound();
+      showChibi();
+    } catch (err) {
+      setTutorHistory(before);                    // forget the request that failed
+      setTutorError(
+        err?.offTopic ? err.message : 'I could not build that lesson. Please try again.'
+      );
+    } finally {
+      setTutorWaiting(false);
+    }
+  };
+
+  // copies the lesson's code
+  const handleCopy = async () => {
+    if (!lesson) return;
+    try {
+      await navigator.clipboard.writeText(lesson.code);
+      setCopied(true);
+      later(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard not allowed: nothing to do */
+    }
+  };
+
+  // chibi appears and hops, then disappears after CHIBI_MS (skipped if the tutor has no chibi)
   const showChibi = () => {
+    if (!tutor.chibi) return;
     clearTimeout(chibiTimer.current);
     clearTimeout(pauseTimer.current);
 
@@ -129,7 +235,7 @@ export default function ChatScreen({
     setWaiting(true);
 
     try {
-      const reply = await getReply(next);
+      const reply = await getReply(next, tutor);
 
       // the reply contains file(s): the icon hops until they are downloaded
       const files = splitReply(reply)
@@ -160,7 +266,7 @@ export default function ChatScreen({
     <section ref={ref} className="chat" onClick={handleScreenClick}>
       {/* character: fades in on the left */}
       <div className="chat__character">
-        <img src={character} alt="" draggable="false" />
+        <img src={tutor.image} alt="" draggable="false" />
 
         {/* file icon: hops near the head until it is clicked */}
         <button
@@ -181,11 +287,14 @@ export default function ChatScreen({
       </div>
 
       {/* chat box: slides in from the right */}
-      <div className="chat__dock">
-        <div className="chat__panel">
+      <div
+        className={`chat__dock chat__dock--${chatState}`}
+        aria-hidden={mode !== 'chat'}
+      >
+        <div className="chat__panel chat__slide">
           <header className="chat__header">
             <div>
-              <h2 className="chat__title">{botName}</h2>
+              <h2 className="chat__title">{tutor.name}</h2>
               {codename && (
                 <p className="chat__sub">
                   Codename: {codename}
@@ -258,18 +367,146 @@ export default function ChatScreen({
         </div>
       </div>
 
-      {/* chibi: sits above the send button, hops for 3 seconds after each reply */}
-      <div className={`chat__chibi ${chibiOn ? 'chat__chibi--on' : ''}`} aria-hidden="true">
-        <video
-          ref={videoRef}
-          src={CHIBI_SRC}
-          muted
-          loop
-          playsInline
-          preload="auto"
-          disablePictureInPicture
-        />
+      {/* Tutoring Mode: code box on top, flow box below, replacing the chat box */}
+      <div
+        className={`chat__dock chat__dock--tutor chat__dock--${tutorState}`}
+        aria-hidden={mode !== 'tutor'}
+      >
+        <div className="tutor">
+          {/* upper box: the raw code (or the worked solution) */}
+          <section className="tutor__box tutor__box--code chat__slide">
+            <header className="tutor__head">
+              <h3 className="tutor__title">{lesson ? lesson.title : 'Tutoring Mode'}</h3>
+              <span className="tutor__tag">{lesson ? lesson.language : tutor.tutoringTag}</span>
+              {lesson && (
+                <button type="button" className="tutor__copy" onClick={handleCopy}>
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              )}
+            </header>
+
+            <div className="tutor__scroll" key={lessonN}>
+              {tutorWaiting ? (
+                <p className="chat__typing" aria-label="typing">
+                  <span />
+                  <span />
+                  <span />
+                </p>
+              ) : lesson ? (
+                <>
+                  {lesson.summary && <p className="tutor__summary">{lesson.summary}</p>}
+
+                  <pre className="tutor__code">
+                    <code className="tutor__code-inner">
+                      {lesson.code.split('\n').map((line, i) => (
+                        <span key={i} className="tutor__line">
+                          <span className="tutor__ln">{i + 1}</span>
+                          <span>{line || ' '}</span>
+                        </span>
+                      ))}
+                    </code>
+                  </pre>
+
+                  {lesson.notes.length > 0 && (
+                    <>
+                      <h4 className="tutor__sub">Key points</h4>
+                      <ul className="tutor__notes">
+                        {lesson.notes.map((n, i) => (
+                          <li key={i}>{n}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </>
+              ) : (
+                <p className="tutor__empty">{tutor.emptyCode}</p>
+              )}
+              {tutorError && <p className="tutor__error">{tutorError}</p>}
+            </div>
+          </section>
+
+          {/* lower box: the flow until the result */}
+          <section
+            className="tutor__box tutor__box--flow chat__slide"
+            style={{ '--d': '0.15s' }}
+          >
+            <header className="tutor__head">
+              <h3 className="tutor__title">Flow</h3>
+              <span className="tutor__tag">Step by step</span>
+            </header>
+
+            <div className="tutor__scroll" key={lessonN}>
+              {!tutorWaiting && lesson ? (
+                <ol className="tutor__flow">
+                  {lesson.flow.map((s, i) => (
+                    <li key={i} className="tutor__step">
+                      <span className="tutor__step-n">{i + 1}</span>
+                      <div>
+                        <strong>{s.title}</strong>
+                        {s.detail && <p>{s.detail}</p>}
+                      </div>
+                    </li>
+                  ))}
+                  {lesson.result && (
+                    <li className="tutor__step tutor__step--result">
+                      <span className="tutor__step-n">✓</span>
+                      <div>
+                        <strong>Result</strong>
+                        <p>{lesson.result}</p>
+                      </div>
+                    </li>
+                  )}
+                </ol>
+              ) : (
+                <p className="tutor__empty">{tutor.emptyFlow}</p>
+              )}
+            </div>
+          </section>
+
+          {/* ask the tutor */}
+          <form
+            className="chat__form tutor__form chat__slide"
+            style={{ '--d': '0.3s' }}
+            onSubmit={handleTutorSend}
+          >
+            <input
+              className="chat__input"
+              type="text"
+              value={tutorDraft}
+              onChange={(e) => setTutorDraft(e.target.value)}
+              placeholder={tutor.askPlaceholder}
+              autoComplete="off"
+              aria-label="Ask the tutor"
+            />
+            <button
+              type="submit"
+              className="chat__send"
+              disabled={!tutorDraft.trim() || tutorWaiting}
+              aria-label="Send"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="13 6 19 12 13 18" />
+              </svg>
+            </button>
+          </form>
+        </div>
       </div>
+
+      {/* chibi: sits above the send button, hops for 3 seconds after each reply */}
+      {tutor.chibi && (
+        <div className={`chat__chibi ${chibiOn ? 'chat__chibi--on' : ''}`} aria-hidden="true">
+          <video
+            ref={videoRef}
+            src={tutor.chibi}
+            muted
+            loop
+            playsInline
+            preload="auto"
+            disablePictureInPicture
+          />
+        </div>
+      )}
 
       {/* blurs the character and chat while the menu is open (same layer as the session screen) */}
       <div className={`session__blur ${menuOpen ? 'session__blur--on' : ''}`} />
@@ -312,8 +549,37 @@ export default function ChatScreen({
               <span className="session__bar-label">Load Session</span>
             </button>
           )}
+
+          {/* Tutoring Mode: switches the chat box for the code box and the flow box */}
+          <button
+            className="session__bar"
+            style={{ '--i': onLoadSession ? 2 : 1 }}
+            onClick={toggleTutor}
+          >
+            <span className="session__circle">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 9 12 5l9 4-9 4z" />
+                <path d="M7 11v4c0 1 2.2 2 5 2s5-1 5-2v-4" />
+              </svg>
+            </span>
+            <span className="session__bar-label">
+              Tutoring Mode{mode === 'tutor' ? ' · On' : ''}
+            </span>
+          </button>
         </div>
       </div>
+
+      {/* top and bottom panels: close, then open, while the screens are swapped */}
+      {curtain !== 'off' && (
+        <div
+          className="chat__shutters"
+          aria-hidden="true"
+          style={{ '--shutter-ms': `${SHUTTER_MS}ms` }}
+        >
+          <div className={`chat__shutter chat__shutter--top chat__shutter--${curtain}`} />
+          <div className={`chat__shutter chat__shutter--bottom chat__shutter--${curtain}`} />
+        </div>
+      )}
 
       {/* codename box for loading a session */}
       {loadOpen && <LoadPrompt onSubmit={onLoadSession} onClose={() => setLoadOpen(false)} />}

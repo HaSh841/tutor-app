@@ -6,9 +6,11 @@ import IntroScreen from './components/IntroScreen/IntroScreen';
 import SessionScreen from './components/SessionScreen/SessionScreen';
 import ChatScreen from './components/ChatScreen/ChatScreen';
 import LoadPrompt from './components/LoadPrompt/LoadPrompt';
+import TutorSelect from './components/TutorSelect/TutorSelect';
 import Shutters from './components/Shutters/Shutters';
 import { menuItems } from './data/menuItems';
 import { loadSession, sessionExists } from './data/sessionApi';
+import { getTutor, rememberTutor, getSavedTutorId } from './data/tutors';
 
 const backgrounds = [
   '/resources/theresa1.jpg',
@@ -41,18 +43,8 @@ const backTarget = {
   volume: 'menu',
 };
 
-// the dialogue shown on the session screen, one entry per click.
-// The codename box opens after the LAST line, so keep the name question last.
-const sessionLines = [
-  'Doctor, welcome to DWDB.',
-  'As you can see, you have no memories of everything.',
-  'But, rest assured i will help you regain everything.',
-  'I will be right here with you.',
-  'Can you tell me your name doctor?',
-];
+// (the session screen's dialogue now comes from the chosen tutor, see data/tutors.js)
 
-const BOT_NAME = 'Civilight Eterna';                        // the name shown at the top of the chat box
-const CHARACTER_SRC = '/resources/Civilight_Eterna.png';   // used by the session and chat screens
 const CLICK_SFX_SRC = '/resources/sfx1.mp3';
 const BGM_FADE_IN_MS = 2000;
 const EXIT_FADE_MS = 2500;   // black screen and music fade out together
@@ -84,7 +76,7 @@ function fadeVolume(audio, from, to, ms, smooth = false) {
   const step = (now) => {
     const t = Math.min((now - start) / ms, 1);
     const k = smooth ? t * t * (3 - 2 * t) : t;
-    audio.volume = from + (to - from) * k;
+    audio.volume = Math.min(1, Math.max(0, from + (to - from) * k));
     if (t < 1) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
@@ -103,6 +95,8 @@ export default function App() {
   const [volume, setVolume] = useState(60);          // music, 0 to 100
   const [sfxVolume, setSfxVolume] = useState(80);    // button sounds and voices, 0 to 100
   const [codename, setCodename] = useState('');      // the active session's codename
+  const [tutorId, setTutorId] = useState(getTutor().id);   // the chosen tutor
+  const [tutorPick, setTutorPick] = useState(false);       // the "choose your tutor" box
   const [loadPrompt, setLoadPrompt] = useState(false);   // "enter codename" box on the main menu
   // key restarts the chat screen; messages is a loaded history (null = brand new chat)
   const [chatData, setChatData] = useState({ key: 0, messages: null });
@@ -113,6 +107,7 @@ export default function App() {
   const sessionBgmRef = useRef(null);                // session and chat music
 
   const items = subMenus[view] ?? menuItems;
+  const tutor = getTutor(tutorId);
 
   // plays the button sound; a new Audio each time so fast clicks can overlap
   const playClick = useCallback(() => {
@@ -190,6 +185,14 @@ export default function App() {
     fadeFromMenu('session', MENU_FADE_OUT_MS, SESSION_FADE_IN_MS);
   };
 
+  // tutor confirmed in the "choose your tutor" box: remember it, then start the new session
+  const handleTutorChosen = (chosen) => {
+    if (busyRef.current) return;
+    setTutorId(chosen.id);
+    setTutorPick(false);
+    startSession();
+  };
+
   // session or chat screen -> main menu:
   // the screen fades to black while the music fades out (outMs),
   // then the menu fades in while the menu music fades in (inMs)
@@ -241,6 +244,7 @@ export default function App() {
 
     // these are ready long before the screen swaps in (the fade takes seconds)
     setCodename(name);
+    setTutorId(getSavedTutorId(name));             // the tutor this codename was started with
     setChatData((d) => ({ key: d.key + 1, messages: result.messages }));
     return '';
   };
@@ -264,6 +268,7 @@ export default function App() {
     setTimeout(() => {
       // black: swap in the loaded session (the chat screen restarts with its intro animation)
       setCodename(name);
+      setTutorId(getSavedTutorId(name));
       setChatData((d) => ({ key: d.key + 1, messages: result.messages }));
       setCurtain(false);                           // fade back in
 
@@ -286,6 +291,7 @@ export default function App() {
   // codename confirmed: close the top and bottom panels, then go to the chat screen
   const handleCodename = (name) => {
     setCodename(name);
+    rememberTutor(name, tutorId);    // so Load Session brings back the same tutor
     setChatData((d) => ({ key: d.key + 1, messages: null }));   // a brand new chat
     busyRef.current = true;          // ignore everything else while it closes
     setShutter(true);
@@ -319,8 +325,8 @@ export default function App() {
       handleExit();
       return;
     }
-    if (id === 'new-session') {
-      startSession();
+    if (id === 'new-session') {      // first choose the tutor, then the session starts
+      setTutorPick(true);
       return;
     }
     if (id === 'load-session') {     // ask for the codename of a saved session
@@ -405,10 +411,15 @@ export default function App() {
         <LoadPrompt onSubmit={handleLoadFromMenu} onClose={() => setLoadPrompt(false)} />
       )}
 
+      {/* main menu: "choose your tutor" box for New Session */}
+      {screen === 'menu' && tutorPick && (
+        <TutorSelect onConfirm={handleTutorChosen} onClose={() => setTutorPick(false)} />
+      )}
+
       {screen === 'session' && (
         <SessionScreen
-          character={CHARACTER_SRC}
-          lines={sessionLines}
+          character={tutor.image}
+          lines={tutor.sessionLines}
           voiceVolume={sfxVolume / 100}
           onBack={returnToMenu}
           onCodename={handleCodename}
@@ -419,8 +430,7 @@ export default function App() {
       {screen === 'chat' && (
         <ChatScreen
           key={chatData.key}
-          character={CHARACTER_SRC}
-          botName={BOT_NAME}
+          tutor={tutor}
           codename={codename}
           initialMessages={chatData.messages}
           onHome={goHome}

@@ -7,7 +7,7 @@ import { saveSession } from '../../data/sessionApi';
 import LoadPrompt from '../LoadPrompt/LoadPrompt';
 import './ChatScreen.css';
 
-const CHIBI_SRC = '/resources/chibi.mp4';   // your chibi video, in public/resources/
+const CHIBI_SRC = '/resources/Civilight_Eterna_Sprite.webm';   // your chibi video, in public/resources/
 const CHIBI_MS = 3000;                      // how long the chibi stays on screen after a reply
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));

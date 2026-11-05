@@ -4,12 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-  "dev": "concurrently -k -n web,api \"vite\" \"node server/index.js\"",
-  "server": "node server/index.js",
-  "build": "vite build",
-  "lint": "eslint .",
-  "preview": "vite preview"
-},
+    "dev": "concurrently -k -n web,api \"vite\" \"node server/index.js\"",
+    "server": "node server/index.js",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
   "dependencies": {
     "docx": "^9.15.0",
     "exceljs": "^4.4.0",

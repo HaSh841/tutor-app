@@ -4,10 +4,10 @@ import { getReply, getLesson } from './getReply';
 import { splitReply, extFor, saveBlock } from './downloadFile';
 import { playReplySound } from './playSound';
 import { saveSession } from '../../data/sessionApi';
+import { getTutor } from '../../data/tutors';
 import LoadPrompt from '../LoadPrompt/LoadPrompt';
 import './ChatScreen.css';
 
-const CHIBI_SRC = '/resources/Civilight_Eterna_Sprite.webm';   // your chibi video, in public/resources/
 const CHIBI_MS = 3000;                      // how long the chibi stays on screen after a reply
 
 // Tutoring Mode transition (keep these in step with the 0.8s slide in ChatScreen.css)
@@ -22,9 +22,8 @@ const nextIdFor = (list) =>
   list?.length ? Math.max(...list.map((m) => m.id ?? 0)) + 1 : 1;
 
 export default function ChatScreen({
-  character = '/resources/Civilight_Eterna.png',
+  tutor = getTutor(),                            // the chosen tutor (see data/tutors.js)
   codename = '',
-  botName = 'Civilight Eterna',
   initialMessages = null,                        // a loaded session's history, or null for a new chat
   onHome,                                        // called when the Home bar is pressed
   onLoadSession,                                 // async (codename) => '' on success, or an error message
@@ -47,7 +46,7 @@ export default function ChatScreen({
           {
             id: 0,
             role: 'bot',
-            text: `Hello, ${codename || 'Doctor'}. What would you like to talk about?`,
+            text: tutor.greeting(codename),
           },
         ]
   );
@@ -149,14 +148,15 @@ export default function ChatScreen({
     const text = tutorDraft.trim();
     if (!text || tutorWaiting) return;
 
-    const next = [...tutorHistory, { id: tutorIdRef.current++, role: 'user', text }];
+    const before = tutorHistory;
+    const next = [...before, { id: tutorIdRef.current++, role: 'user', text }];
     setTutorHistory(next);
     setTutorDraft('');
     setTutorWaiting(true);
     setTutorError('');
 
     try {
-      const result = await getLesson(next);
+      const result = await getLesson(next, tutor);
       setLesson(result);
       setLessonN((n) => n + 1);
       setTutorHistory([
@@ -166,8 +166,11 @@ export default function ChatScreen({
       setConnected(true);
       playReplySound();
       showChibi();
-    } catch {
-      setTutorError('I could not build that lesson. Please try again.');
+    } catch (err) {
+      setTutorHistory(before);                    // forget the request that failed
+      setTutorError(
+        err?.offTopic ? err.message : 'I could not build that lesson. Please try again.'
+      );
     } finally {
       setTutorWaiting(false);
     }
@@ -185,8 +188,9 @@ export default function ChatScreen({
     }
   };
 
-  // chibi appears and hops, then disappears after CHIBI_MS
+  // chibi appears and hops, then disappears after CHIBI_MS (skipped if the tutor has no chibi)
   const showChibi = () => {
+    if (!tutor.chibi) return;
     clearTimeout(chibiTimer.current);
     clearTimeout(pauseTimer.current);
 
@@ -231,7 +235,7 @@ export default function ChatScreen({
     setWaiting(true);
 
     try {
-      const reply = await getReply(next);
+      const reply = await getReply(next, tutor);
 
       // the reply contains file(s): the icon hops until they are downloaded
       const files = splitReply(reply)
@@ -262,7 +266,7 @@ export default function ChatScreen({
     <section ref={ref} className="chat" onClick={handleScreenClick}>
       {/* character: fades in on the left */}
       <div className="chat__character">
-        <img src={character} alt="" draggable="false" />
+        <img src={tutor.image} alt="" draggable="false" />
 
         {/* file icon: hops near the head until it is clicked */}
         <button
@@ -290,7 +294,7 @@ export default function ChatScreen({
         <div className="chat__panel chat__slide">
           <header className="chat__header">
             <div>
-              <h2 className="chat__title">{botName}</h2>
+              <h2 className="chat__title">{tutor.name}</h2>
               {codename && (
                 <p className="chat__sub">
                   Codename: {codename}
@@ -369,11 +373,11 @@ export default function ChatScreen({
         aria-hidden={mode !== 'tutor'}
       >
         <div className="tutor">
-          {/* upper box: the raw code */}
+          {/* upper box: the raw code (or the worked solution) */}
           <section className="tutor__box tutor__box--code chat__slide">
             <header className="tutor__head">
               <h3 className="tutor__title">{lesson ? lesson.title : 'Tutoring Mode'}</h3>
-              <span className="tutor__tag">{lesson ? lesson.language : 'Code'}</span>
+              <span className="tutor__tag">{lesson ? lesson.language : tutor.tutoringTag}</span>
               {lesson && (
                 <button type="button" className="tutor__copy" onClick={handleCopy}>
                   {copied ? 'Copied' : 'Copy'}
@@ -415,16 +419,13 @@ export default function ChatScreen({
                   )}
                 </>
               ) : (
-                <p className="tutor__empty">
-                  Ask me to teach you a piece of code. The raw code and everything you need to
-                  know about it will appear here.
-                </p>
+                <p className="tutor__empty">{tutor.emptyCode}</p>
               )}
               {tutorError && <p className="tutor__error">{tutorError}</p>}
             </div>
           </section>
 
-          {/* lower box: the flow the code goes through until the result */}
+          {/* lower box: the flow until the result */}
           <section
             className="tutor__box tutor__box--flow chat__slide"
             style={{ '--d': '0.15s' }}
@@ -457,10 +458,7 @@ export default function ChatScreen({
                   )}
                 </ol>
               ) : (
-                <p className="tutor__empty">
-                  The steps the code goes through, from the start until the result, will appear
-                  here.
-                </p>
+                <p className="tutor__empty">{tutor.emptyFlow}</p>
               )}
             </div>
           </section>
@@ -476,7 +474,7 @@ export default function ChatScreen({
               type="text"
               value={tutorDraft}
               onChange={(e) => setTutorDraft(e.target.value)}
-              placeholder="Teach me a code..."
+              placeholder={tutor.askPlaceholder}
               autoComplete="off"
               aria-label="Ask the tutor"
             />
@@ -496,17 +494,19 @@ export default function ChatScreen({
       </div>
 
       {/* chibi: sits above the send button, hops for 3 seconds after each reply */}
-      <div className={`chat__chibi ${chibiOn ? 'chat__chibi--on' : ''}`} aria-hidden="true">
-        <video
-          ref={videoRef}
-          src={CHIBI_SRC}
-          muted
-          loop
-          playsInline
-          preload="auto"
-          disablePictureInPicture
-        />
-      </div>
+      {tutor.chibi && (
+        <div className={`chat__chibi ${chibiOn ? 'chat__chibi--on' : ''}`} aria-hidden="true">
+          <video
+            ref={videoRef}
+            src={tutor.chibi}
+            muted
+            loop
+            playsInline
+            preload="auto"
+            disablePictureInPicture
+          />
+        </div>
+      )}
 
       {/* blurs the character and chat while the menu is open (same layer as the session screen) */}
       <div className={`session__blur ${menuOpen ? 'session__blur--on' : ''}`} />

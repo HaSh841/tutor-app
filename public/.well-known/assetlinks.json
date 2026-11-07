@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.vercel.elcaro_001_seven.twa",
+        "sha256_cert_fingerprints": ["AC:9A:DA:12:7B:20:52:53:4F:80:79:78:B5:55:69:81:9F:68:0D:18:FA:84:D2:66:2D:D5:3A:C0:C9:0B:94:22"]
+      }
+    }]

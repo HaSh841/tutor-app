@@ -30,6 +30,7 @@ export default function ChatScreen({
   tutor = getTutor(),                            // the chosen tutor (see data/tutors.js)
   codename = '',
   initialMessages = null,                        // a loaded session's history, or null for a new chat
+  initialTutorHistory = null,                    // a loaded session's Tutoring Mode history, or null
   onHome,                                        // called when the Home bar is pressed
   onLoadSession,                                 // async (codename) => '' on success, or an error message
 }) {
@@ -42,8 +43,8 @@ export default function ChatScreen({
   const pauseTimer = useRef(null);               // pauses the video once it has faded out
   const timers = useRef([]);                     // timers of the Tutoring Mode transition
   const transRef = useRef(false);                // true while the Tutoring Mode transition runs
-  const tutorIdRef = useRef(1);                  // next tutoring message id
-  const startedRef = useRef(false);              // ADDED: makes sure the first save only happens once
+  const tutorIdRef = useRef(nextIdFor(initialTutorHistory));   // next tutoring message id
+  const startedRef = useRef(false);              // makes sure the first save only happens once
   const [menuOpen, setMenuOpen] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);       // the "load session" box
   const [messages, setMessages] = useState(() =>
@@ -71,9 +72,18 @@ export default function ChatScreen({
   const [chatState, setChatState] = useState('intro');
   const [tutorState, setTutorState] = useState('hidden');
   const [curtain, setCurtain] = useState('off');         // 'off', 'close' or 'open'
-  const [lesson, setLesson] = useState(null);            // the current lesson, or null
-  const [lessonN, setLessonN] = useState(0);             // changes with each lesson (resets the scroll)
-  const [tutorHistory, setTutorHistory] = useState([]);  // what the tutor and the user said
+  // a loaded session: the current lesson is the last tutor reply (it is saved as JSON text)
+  const [lesson, setLesson] = useState(() => {
+    const last = [...(initialTutorHistory || [])].reverse().find((m) => m.role === 'bot');
+    try {
+      return last ? JSON.parse(last.text) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [lessonN, setLessonN] = useState(initialTutorHistory?.length ? 1 : 0);   // changes with each lesson (resets the scroll)
+  const [tutorHistory, setTutorHistory] = useState(initialTutorHistory || []);  // what the tutor and the user said
+  const tutorHistoryRef = useRef(initialTutorHistory || []);   // always the latest, so saves never use an old copy
   const [tutorDraft, setTutorDraft] = useState('');
   const [tutorAttached, setTutorAttached] = useState(null);   // file waiting to be sent in Tutoring Mode
   const [tutorWaiting, setTutorWaiting] = useState(false);
@@ -88,6 +98,10 @@ export default function ChatScreen({
 
   // math tutor: the graph of the current lesson (null hides the hopping graph button)
   const graph = kind === 'math' && mode === 'tutor' && !tutorWaiting && lesson ? lesson.graph : null;
+
+  useEffect(() => {
+    tutorHistoryRef.current = tutorHistory;
+  }, [tutorHistory]);
 
   // keep the newest message in view
   useEffect(() => {
@@ -111,16 +125,15 @@ export default function ChatScreen({
   };
 
   // saves the whole chat on the server under the codename (pictures are left out: they are too big)
-  const persist = async (list) => {
+  const persist = async (list, tutorList = tutorHistoryRef.current) => {
     if (!codename) return;
-    const slim = list.map((m) =>
-      m.file?.images?.length ? { ...m, file: { ...m.file, images: [] } } : m
-    );
-    const ok = await saveSession(codename, slim);
+    const slimmer = (l) =>
+      l.map((m) => (m.file?.images?.length ? { ...m, file: { ...m.file, images: [] } } : m));
+    const ok = await saveSession(codename, slimmer(list), slimmer(tutorList));
     setSaveState(ok ? 'saved' : 'failed');
   };
 
-  // ADDED: a brand new session is saved right away, so its codename exists even if the user
+  // a brand new session is saved right away, so its codename exists even if the user
   // only uses Tutoring Mode and never sends a normal chat message
   useEffect(() => {
     if (startedRef.current) return;
@@ -204,12 +217,13 @@ export default function ChatScreen({
       setLessonN((n) => n + 1);
       setSampleOpen(false);                       // a new lesson: the sample box starts closed
       setSampleSeen(false);                       // and the box hops again
-      setTutorHistory([
+      const withLesson = [
         ...next,
         { id: tutorIdRef.current++, role: 'bot', text: JSON.stringify(result) },
-      ]);
+      ];
+      setTutorHistory(withLesson);
       setConnected(true);
-      persist(messages);                          // ADDED: keeps the session saved (retries if the first save failed)
+      persist(messages, withLesson);              // saves the chat and the tutoring history
       playReplySound();
       showChibi();
     } catch (err) {

@@ -21,7 +21,15 @@ const withTimeout = (promise) =>
 
 const sessionRef = (codename) => ref(db, `sessions/${codename}`)
 
-// returns { ok: true, messages } | { ok: false, notFound: true } | { ok: false, offline: true }
+// Firebase hands lists back as arrays, or as objects when it has gaps
+const toList = (raw) => (Array.isArray(raw) ? raw : raw ? Object.values(raw) : [])
+
+const clean = (list) =>
+  list
+    .filter(Boolean)
+    .map((m, i) => ({ id: Number.isFinite(m.id) ? m.id : i, role: m.role, text: String(m.text ?? '') }))
+
+// returns { ok: true, messages, tutorHistory } | { ok: false, notFound: true } | { ok: false, offline: true }
 export async function loadSession(codename) {
   if (!db) return { ok: false, offline: true }
   if (!valid(codename)) return { ok: false, notFound: true }
@@ -35,15 +43,10 @@ export async function loadSession(codename) {
     // the tutor this session was started with (saved in the database, so any device gets it)
     if (typeof data?.tutorId === 'string') rememberTutorLocally(codename, data.tutorId)
 
-    // Firebase hands lists back as arrays, or as objects when it has gaps
-    const raw = data?.messages
-    const list = Array.isArray(raw) ? raw : raw ? Object.values(raw) : []
-
     return {
       ok: true,
-      messages: list
-        .filter(Boolean)
-        .map((m, i) => ({ id: Number.isFinite(m.id) ? m.id : i, role: m.role, text: String(m.text ?? '') })),
+      messages: clean(toList(data?.messages)),
+      tutorHistory: clean(toList(data?.tutorHistory)),   // Tutoring Mode history (empty if none yet)
     }
   } catch (err) {
     console.error('Could not load the session:', err)
@@ -52,7 +55,7 @@ export async function loadSession(codename) {
 }
 
 // returns true when saved, false when it failed
-export async function saveSession(codename, messages) {
+export async function saveSession(codename, messages, tutorHistory) {
   if (!db || !valid(codename)) return false
 
   try {
@@ -64,6 +67,14 @@ export async function saveSession(codename, messages) {
           role: m.role,
           text: String(m.text ?? '').slice(0, MAX_TEXT),
         })),
+        // only written when given, so saving the chat never wipes the tutoring history
+        ...(Array.isArray(tutorHistory) && {
+          tutorHistory: tutorHistory.slice(-MAX_MESSAGES).map((m, i) => ({
+            id: Number.isFinite(m.id) ? m.id : i,
+            role: m.role,
+            text: String(m.text ?? '').slice(0, MAX_TEXT),
+          })),
+        }),
         updatedAt: serverTimestamp(),
       })
     )

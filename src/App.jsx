@@ -104,7 +104,7 @@ export default function App() {
   const [tutorPick, setTutorPick] = useState(false);       // the "choose your tutor" box
   const [loadPrompt, setLoadPrompt] = useState(false);   // "enter codename" box on the main menu
   // key restarts the chat screen; messages is a loaded history (null = brand new chat)
-  const [chatData, setChatData] = useState({ key: 0, messages: null });
+  const [chatData, setChatData] = useState({ key: 0, messages: null, tutorHistory: null });
   const sfxVolumeRef = useRef(0.8);                  // lets playClick read the latest level
   const busyRef = useRef(false);                     // true while a screen change runs
   const sfxRef = useRef(null);                       // the intro sound
@@ -256,7 +256,7 @@ export default function App() {
     // these are ready long before the screen swaps in (the fade takes seconds)
     setCodename(name);
     setTutorId(getSavedTutorId(name));             // the tutor this codename was started with
-    setChatData((d) => ({ key: d.key + 1, messages: result.messages }));
+   setChatData((d) => ({ key: d.key + 1, messages: result.messages, tutorHistory: result.tutorHistory }));
     return '';
   };
 
@@ -451,6 +451,7 @@ export default function App() {
           tutor={tutor}
           codename={codename}
           initialMessages={chatData.messages}
+          initialTutorHistory={chatData.tutorHistory}
           onHome={goHome}
           onLoadSession={handleLoadInChat}
         />

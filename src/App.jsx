@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import ParallaxScene from './components/ParallaxScene/ParallaxScene';
 import MainMenu from './components/MainMenu/MainMenu';
 import VolumeControl, { VolumeSlider } from './components/VolumeControl/VolumeControl';
+import ScaleControl from './components/ScaleControl/ScaleControl';
 import IntroScreen from './components/IntroScreen/IntroScreen';
 import SessionScreen from './components/SessionScreen/SessionScreen';
 import ChatScreen from './components/ChatScreen/ChatScreen';
@@ -11,6 +12,7 @@ import Shutters from './components/Shutters/Shutters';
 import { menuItems } from './data/menuItems';
 import { loadSession, sessionExists } from './data/sessionApi';
 import { getTutor, rememberTutor, getSavedTutorId } from './data/tutors';
+import { loadScale, saveScale } from './data/uiScale';
 
 const backgrounds = [
   '/resources/theresa1.jpg',
@@ -31,6 +33,7 @@ const subMenus = {
   ],
   menu: [
     { id: 'volume', label: 'Volume' },
+    { id: 'scale', label: 'Scale' },
     { id: 'show-hints', label: 'Show Hints' },
   ],
 };
@@ -41,6 +44,7 @@ const backTarget = {
   load: 'main',
   menu: 'main',
   volume: 'menu',
+  scale: 'menu',
 };
 
 // (the session screen's dialogue now comes from the chosen tutor, see data/tutors.js)
@@ -85,7 +89,7 @@ function fadeVolume(audio, from, to, ms, smooth = false) {
 export default function App() {
   const [introDone, setIntroDone] = useState(false);
   const [screen, setScreen] = useState('menu');      // 'menu', 'session' or 'chat'
-  const [view, setView] = useState('main');          // 'main', 'start', 'load', 'menu' or 'volume'
+  const [view, setView] = useState('main');          // 'main', 'start', 'load', 'menu', 'volume' or 'scale'
   const [nextView, setNextView] = useState(null);    // where the bar is heading
   const [barHidden, setBarHidden] = useState(false);
   const [curtain, setCurtain] = useState(false);     // black overlay for screen changes
@@ -94,6 +98,7 @@ export default function App() {
   const [exiting, setExiting] = useState(false);
   const [volume, setVolume] = useState(60);          // music, 0 to 100
   const [sfxVolume, setSfxVolume] = useState(80);    // button sounds and voices, 0 to 100
+  const [uiScale, setUiScale] = useState(loadScale); // size of the whole UI in percent, remembered on the device
   const [codename, setCodename] = useState('');      // the active session's codename
   const [tutorId, setTutorId] = useState(getTutor().id);   // the chosen tutor
   const [tutorPick, setTutorPick] = useState(false);       // the "choose your tutor" box
@@ -140,6 +145,12 @@ export default function App() {
   const handleSfxChange = (v) => {
     setSfxVolume(v);
     sfxVolumeRef.current = v / 100;
+  };
+
+  // Menu > Scale: resize the whole UI and remember the choice
+  const handleScaleChange = (v) => {
+    setUiScale(v);
+    saveScale(v);
   };
 
   // menu -> session or chat screen:
@@ -333,7 +344,7 @@ export default function App() {
       setLoadPrompt(true);
       return;
     }
-    if (subMenus[id] || id === 'volume') {   // sub menus and the volume screen
+    if (subMenus[id] || id === 'volume' || id === 'scale') {   // sub menus, the volume and scale screens
       goTo(id);
       return;
     }
@@ -369,7 +380,8 @@ export default function App() {
   };
 
   return (
-    <>
+    // everything lives inside this box, which is resized by the Scale setting (see index.css)
+    <div className="ui-scale" style={{ '--ui-scale': uiScale / 100 }}>
       <audio ref={sfxRef} src="/resources/okaeri_sfx.mp3" preload="auto" />
       <audio ref={bgmRef} src="/resources/main_menu_bgm.mp3" preload="auto" loop />
       <audio ref={sessionBgmRef} src="/resources/session_screen_bgm1.mp3" preload="auto" loop />
@@ -395,6 +407,12 @@ export default function App() {
               volume={volume}
               onChange={handleVolumeChange}
               onBack={() => goTo(backTarget.volume)}
+            />
+          ) : view === 'scale' ? (
+            <ScaleControl
+              scale={uiScale}
+              onChange={handleScaleChange}
+              onBack={() => goTo(backTarget.scale)}
             />
           ) : (
             <MainMenu
@@ -476,6 +494,6 @@ export default function App() {
           transition: `opacity ${EXIT_FADE_MS}ms ease-in-out`,
         }}
       />
-    </>
+    </div>
   );
 }

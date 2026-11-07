@@ -13,6 +13,43 @@ body,
   height: 100%;
 }
 
+/* use the real visible height on phones, where 100% can include the browser bars */
+@supports (height: 100dvh) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
+}
+
+html,
+body {
+  overflow: hidden;                         /* no page scrolling or rubber-banding */
+  overscroll-behavior: none;
+  background: #000;                         /* no white flash while the app loads */
+  -webkit-tap-highlight-color: transparent; /* no gray flash when buttons are tapped */
+}
+
 body {
   font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+}
+
+/* the Scale setting (Menu > Scale): the whole app sits in this box.
+   The box is made bigger or smaller by the scale, then shrunk or grown back,
+   so it always fills the screen while everything inside looks smaller or bigger. */
+.ui-scale {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: calc(100vw / var(--ui-scale, 1));
+  height: calc(100vh / var(--ui-scale, 1));
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: top left;
+  overflow: hidden;
+}
+
+@supports (height: 100dvh) {
+  .ui-scale {
+    height: calc(100dvh / var(--ui-scale, 1));
+  }
 }

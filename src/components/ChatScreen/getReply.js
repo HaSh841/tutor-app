@@ -1,5 +1,6 @@
 // Talks to Google Gemini through the Vite proxy (or the Vercel function), so the API key never reaches the browser.
-// `history` is the whole conversation so far: [{ id, role: 'user' | 'bot', text }]
+// `history` is the whole conversation so far: [{ id, role: 'user' | 'bot', text, file? }]
+//   file (optional, user messages only): { name, content, images } read from an uploaded file
 // `tutor` is the chosen tutor from data/tutors.js (decides the subject the AI is allowed to teach)
 // getReply returns the bot's reply as a string.
 // getLesson (Tutoring Mode) returns a lesson object:
@@ -12,13 +13,24 @@ import { kindOf } from './lessonKind'
 // (if a name gives a 404, replace it with the exact name shown in AI Studio)
 const MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest']
 
+// how to treat pictures (photos, graphs, pdf pages, pictures inside Word files)
+const IMAGE_RULES =
+  'If pictures are attached (a graph, a figure, a photo of a problem, a scanned page), look at them carefully ' +
+  'before answering: read the axes, labels, scale, curves, marked points and any text in them. ' +
+  'Never invent values you cannot see: if something is unclear, say so. '
+
 const FILE_RULES =
   'When the user asks for a file, put the full content in ONE fenced code block and briefly say what it is. ' +
   'For code, use the language name (python, javascript, html...). ' +
   'For a Word document use ```docx and for a PDF use ```pdf. Inside, write simple markdown only: ' +
   '"# " heading, "## " subheading, "- " bullets, and plain paragraphs. No tables, no images. ' +
   'For an Excel spreadsheet use ```xlsx and write CSV only: first row is the headers, ' +
-  'one row per line, commas between cells, and wrap any cell containing a comma in double quotes.'
+  'one row per line, commas between cells, and wrap any cell containing a comma in double quotes. ' +
+  'If the user attached a file and asks you to change, fix, translate, shorten or improve it, ' +
+  'return the COMPLETE updated file (never only the changed parts) in ONE fenced block of the same type ' +
+  '(the same language for code, ```docx for a Word file, ```pdf for a PDF, ```xlsx for a spreadsheet), ' +
+  'and say in one sentence what you changed. If they only ask a question about the file, just answer it. ' +
+  IMAGE_RULES
 
 // the restriction: the tutor only teaches its own subject
 const scopeRule = (t) =>
@@ -68,21 +80,65 @@ const lessonPrompt = (t) => {
     `"flow" (an array of 3 to 8 objects with "title" and "detail", ${t.flowDesc}; keep each one short), ` +
     '"result" (one sentence: what is finally produced or answered, include a sample value if you can), ' +
     (math ? MATH_KEYS : CODE_KEYS) +
-    'Write all text as plain text: never use LaTeX or $ signs, write math like x^2 + 3x - 4 = 0. ' +
     'Everything must be consistent: "problem", "code", "answer", "flow" and "graph" must all use the SAME function and the SAME numbers. ' +
+    'If the user attached a file, base the lesson on it. When they ask you to fix or change it, ' +
+    'put the COMPLETE updated file content in "code" and explain what changed in "notes" and "flow". ' +
+    IMAGE_RULES +
+    (math
+      ? 'When a picture shows a graph, write the function you read from it as a curve in "graph" (your best y = f(x)) ' +
+        'and mark the points you can read from it, so it can be drawn again here. '
+      : '') +
+    'Write all text as plain text: never use LaTeX or $ signs, write math like x^2 + 3x - 4 = 0. ' +
     'If the user asks a follow-up, answer it with a new full lesson in the same format.'
-    
   )
 }
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
+const FENCE = '`'.repeat(3)
+
+// the text the AI receives for one message (an attached file's text is added after the user's words)
+function withFile(m, showImages) {
+  if (!m.file) return m.text
+
+  const n = m.file.images?.length ?? 0
+  const note =
+    n === 0
+      ? ''
+      : showImages
+        ? `\n(${n} picture${n > 1 ? 's' : ''} from this file ${n > 1 ? 'are' : 'is'} attached.)`
+        : `\n(${n} picture${n > 1 ? 's' : ''} from this file ${n > 1 ? 'were' : 'was'} sent earlier and ${n > 1 ? 'are' : 'is'} not shown again.)`
+
+  const body = m.file.content
+    ? `\n${FENCE}\n${m.file.content}\n${FENCE}`
+    : '\n(This file has no readable text.)'
+
+  return `${m.text}\n\n[Attached file: ${m.file.name}]${note}${body}`
+}
+
 // converts the history to the API format
 function toApiMessages(history) {
-  const all = history.map((m) => ({
-    role: m.role === 'bot' ? 'assistant' : 'user',
-    content: m.text,
-  }))
+  // only the newest message with pictures keeps them: older ones would be sent again with every request
+  let lastWithImages = -1
+  history.forEach((m, i) => {
+    if (m.file?.images?.length) lastWithImages = i
+  })
+
+  const all = history.map((m, i) => {
+    const role = m.role === 'bot' ? 'assistant' : 'user'
+    const showImages = i === lastWithImages
+    const text = withFile(m, showImages)
+
+    if (!showImages) return { role, content: text }
+
+    return {
+      role,
+      content: [
+        { type: 'text', text },
+        ...m.file.images.map((url) => ({ type: 'image_url', image_url: { url } })),
+      ],
+    }
+  })
 
   // drop the opening bot greeting: the conversation must start with a user message
   const firstUser = all.findIndex((m) => m.role === 'user')
@@ -100,7 +156,7 @@ async function callModel(system, history) {
       const res = await fetch('/api/ai/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(30000),   // give up after 30 seconds
+        signal: AbortSignal.timeout(60000),   // give up after 60 seconds (pictures take longer)
         body: JSON.stringify({
           model,
           messages: [{ role: 'system', content: system }, ...messages],

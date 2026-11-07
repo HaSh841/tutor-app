@@ -8,6 +8,7 @@ import { getTutor } from '../../data/tutors';
 import { kindOf } from './lessonKind';
 import GraphButton from './GraphButton';
 import SampleBox from './SampleBox';
+import AttachControl from './AttachControl';
 import LoadPrompt from '../LoadPrompt/LoadPrompt';
 import './ChatScreen.css';
 
@@ -55,6 +56,7 @@ export default function ChatScreen({
         ]
   );
   const [draft, setDraft] = useState('');
+  const [attached, setAttached] = useState(null);        // file waiting to be sent in the chat
   const [waiting, setWaiting] = useState(false);   // true while the bot is "typing"
   const [connected, setConnected] = useState(false);
   const [pending, setPending] = useState([]);      // created files not downloaded yet
@@ -71,6 +73,7 @@ export default function ChatScreen({
   const [lessonN, setLessonN] = useState(0);             // changes with each lesson (resets the scroll)
   const [tutorHistory, setTutorHistory] = useState([]);  // what the tutor and the user said
   const [tutorDraft, setTutorDraft] = useState('');
+  const [tutorAttached, setTutorAttached] = useState(null);   // file waiting to be sent in Tutoring Mode
   const [tutorWaiting, setTutorWaiting] = useState(false);
   const [tutorError, setTutorError] = useState('');
   const [copied, setCopied] = useState(false);
@@ -162,16 +165,22 @@ export default function ChatScreen({
     setSampleOpen((o) => !o);
   };
 
-  // asks the tutor to teach something; the answer fills the boxes
+  // asks the tutor to teach something (optionally about an attached file); the answer fills the boxes
   const handleTutorSend = async (e) => {
     e.preventDefault();
-    const text = tutorDraft.trim();
+    const file = tutorAttached;
+    const text =
+      tutorDraft.trim() || (file ? 'Please read this file and teach me what it does.' : '');
     if (!text || tutorWaiting) return;
 
     const before = tutorHistory;
-    const next = [...before, { id: tutorIdRef.current++, role: 'user', text }];
+    const next = [
+      ...before,
+      { id: tutorIdRef.current++, role: 'user', text, ...(file && { file }) },
+    ];
     setTutorHistory(next);
     setTutorDraft('');
+    setTutorAttached(null);
     setTutorWaiting(true);
     setTutorError('');
 
@@ -208,6 +217,12 @@ export default function ChatScreen({
     } catch {
       /* clipboard not allowed: nothing to do */
     }
+  };
+
+  // downloads the lesson's code box (for example an edited file) as a file
+  const handleDownload = () => {
+    if (!lesson) return;
+    saveBlock(kind === 'math' ? 'docx' : (lesson.language || 'txt').toLowerCase(), lesson.code);
   };
 
   // chibi appears and hops, then disappears after CHIBI_MS (skipped if the tutor has no chibi)
@@ -248,12 +263,17 @@ export default function ChatScreen({
 
   const handleSend = async (e) => {
     e.preventDefault();
-    const text = draft.trim();
+    const file = attached;
+    const text = draft.trim() || (file ? 'Please read this file and tell me what is in it.' : '');
     if (!text || waiting) return;
 
-    const next = [...messages, { id: idRef.current++, role: 'user', text }];
+    const next = [
+      ...messages,
+      { id: idRef.current++, role: 'user', text, ...(file && { file }) },
+    ];
     setMessages(next);
     setDraft('');
+    setAttached(null);
     setWaiting(true);
 
     try {
@@ -361,6 +381,7 @@ export default function ChatScreen({
             {messages.map((m) => (
               <li key={m.id} className={`chat__msg chat__msg--${m.role}`}>
                 <div className="chat__bubble">
+                  {m.file && <span className="chat__file">File: {m.file.name}</span>}
                   {splitReply(m.text).map((part, i) =>
                     part.type === 'code' ? (
                       <div key={i} className="chat__code">
@@ -393,6 +414,7 @@ export default function ChatScreen({
           </ul>
 
           <form className="chat__form" onSubmit={handleSend}>
+            <AttachControl file={attached} onChange={setAttached} />
             <input
               className="chat__input"
               type="text"
@@ -405,7 +427,7 @@ export default function ChatScreen({
             <button
               type="submit"
               className="chat__send"
-              disabled={!draft.trim() || waiting}
+              disabled={(!draft.trim() && !attached) || waiting}
               aria-label="Send"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -429,9 +451,14 @@ export default function ChatScreen({
               <h3 className="tutor__title">{lesson ? lesson.title : 'Tutoring Mode'}</h3>
               <span className="tutor__tag">{lesson ? lesson.language : tutor.tutoringTag}</span>
               {lesson && (
-                <button type="button" className="tutor__copy" onClick={handleCopy}>
-                  {copied ? 'Copied' : 'Copy'}
-                </button>
+                <>
+                  <button type="button" className="tutor__copy" onClick={handleCopy}>
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                  <button type="button" className="tutor__copy" onClick={handleDownload}>
+                    Download
+                  </button>
+                </>
               )}
             </header>
 
@@ -467,7 +494,7 @@ export default function ChatScreen({
                     </code>
                   </pre>
 
-                  {/* math tutor: the final answer (the graph now lives in the hopping box) */}
+                  {/* math tutor: the final answer (the graph lives in the hopping box) */}
                   {kind === 'math' && lesson.answer && (
                     <div className="tutor__answer">
                       <span className="tutor__answer-label">Answer</span>
@@ -537,6 +564,7 @@ export default function ChatScreen({
             style={{ '--d': '0.3s' }}
             onSubmit={handleTutorSend}
           >
+            <AttachControl file={tutorAttached} onChange={setTutorAttached} />
             <input
               className="chat__input"
               type="text"
@@ -549,7 +577,7 @@ export default function ChatScreen({
             <button
               type="submit"
               className="chat__send"
-              disabled={!tutorDraft.trim() || tutorWaiting}
+              disabled={(!tutorDraft.trim() && !tutorAttached) || tutorWaiting}
               aria-label="Send"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">

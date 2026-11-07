@@ -1156,3 +1156,93 @@
     width: min(20rem, 72vw);
   }
 }
+/* ---------- attach button, file chip and file name in bubbles ---------- */
+.attach__btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  aspect-ratio: 1;
+  padding: 0;
+  background: none;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.attach__btn svg {
+  width: 55%;
+  height: 55%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.attach__btn:hover:not(:disabled) {
+  background: #fff;
+  color: #111;
+}
+
+.attach__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.attach__chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 9rem;
+  padding: 0.15rem 0.3rem 0.15rem 0.7rem;
+  background: rgba(255, 255, 255, 0.14);
+  border: 0;
+  border-radius: 999px;
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+.attach__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attach__x {
+  flex: none;
+  padding: 0 0.3rem;
+  background: none;
+  border: 0;
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.attach__x:hover {
+  opacity: 1;
+}
+
+.attach__chip--error {
+  padding-right: 0.7rem;
+  background: rgba(255, 120, 120, 0.25);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chat__file {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  opacity: 0.65;
+}

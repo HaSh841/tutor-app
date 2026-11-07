@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { readFile, ACCEPT } from './readFile';
 
 // A paperclip button plus a small chip with the chosen file's name.
-// file = { name, content, truncated } or null; onChange(file or null)
+// file = { name, content, images, truncated } or null; onChange(file or null)
 export default function AttachControl({ file, onChange }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -49,7 +49,11 @@ export default function AttachControl({ file, onChange }) {
 
       {!busy && !error && file && (
         <span className="attach__chip" title={file.truncated ? 'Long file: only the first part is sent' : file.name}>
-          <span className="attach__name">{file.name}{file.truncated ? ' (cut)' : ''}</span>
+          <span className="attach__name">
+            {file.name}
+            {file.images?.length ? ` · ${file.images.length} img` : ''}
+            {file.truncated ? ' (cut)' : ''}
+          </span>
           <button type="button" className="attach__x" onClick={() => onChange(null)} aria-label="Remove file">×</button>
         </span>
       )}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import useParallax from '../../hooks/useParallax';
 import { getReply, getLesson } from './getReply';
 import { splitReply, extFor, saveBlock } from './downloadFile';
+import { saveFile, downloadLesson } from './exportDocument';
 import { playReplySound } from './playSound';
 import { saveSession } from '../../data/sessionApi';
 import { getTutor } from '../../data/tutors';
@@ -42,6 +43,7 @@ export default function ChatScreen({
   const timers = useRef([]);                     // timers of the Tutoring Mode transition
   const transRef = useRef(false);                // true while the Tutoring Mode transition runs
   const tutorIdRef = useRef(1);                  // next tutoring message id
+  const startedRef = useRef(false);              // ADDED: makes sure the first save only happens once
   const [menuOpen, setMenuOpen] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);       // the "load session" box
   const [messages, setMessages] = useState(() =>
@@ -108,12 +110,24 @@ export default function ChatScreen({
     if (menuOpen && !e.target.closest('.session__menu')) setMenuOpen(false);
   };
 
-  // saves the whole chat on the server under the codename
+  // saves the whole chat on the server under the codename (pictures are left out: they are too big)
   const persist = async (list) => {
     if (!codename) return;
-    const ok = await saveSession(codename, list);
+    const slim = list.map((m) =>
+      m.file?.images?.length ? { ...m, file: { ...m.file, images: [] } } : m
+    );
+    const ok = await saveSession(codename, slim);
     setSaveState(ok ? 'saved' : 'failed');
   };
+
+  // ADDED: a brand new session is saved right away, so its codename exists even if the user
+  // only uses Tutoring Mode and never sends a normal chat message
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    if (initialMessages?.length || !codename) return;      // a loaded session is already saved
+    saveSession(codename, messages).then((ok) => setSaveState(ok ? 'saved' : 'failed'));
+  }, [codename, initialMessages, messages]);
 
   // Load Session bar: close the menu and ask for a codename
   const openLoad = () => {
@@ -195,6 +209,7 @@ export default function ChatScreen({
         { id: tutorIdRef.current++, role: 'bot', text: JSON.stringify(result) },
       ]);
       setConnected(true);
+      persist(messages);                          // ADDED: keeps the session saved (retries if the first save failed)
       playReplySound();
       showChibi();
     } catch (err) {
@@ -219,10 +234,11 @@ export default function ChatScreen({
     }
   };
 
-  // downloads the lesson's code box (for example an edited file) as a file
-  const handleDownload = () => {
+  // downloads the lesson: math as a Word or PDF file with its graph and answer, code as a code file
+  const handleDownload = (format) => {
     if (!lesson) return;
-    saveBlock(kind === 'math' ? 'docx' : (lesson.language || 'txt').toLowerCase(), lesson.code);
+    if (kind === 'math') downloadLesson(lesson, format);
+    else saveBlock((lesson.language || 'txt').toLowerCase(), lesson.code);
   };
 
   // chibi appears and hops, then disappears after CHIBI_MS (skipped if the tutor has no chibi)
@@ -250,14 +266,14 @@ export default function ChatScreen({
     const files = pending;
     setPending([]);
     for (const f of files) {
-      await saveBlock(f.lang, f.content);
+      await saveFile(f.lang, f.content);
       await wait(300);                           // small gap so the browser allows several downloads
     }
   };
 
   // clicking a Download button inside the chat also clears that file from the waiting list
   const handleBubbleDownload = (part) => {
-    saveBlock(part.lang, part.content);
+    saveFile(part.lang, part.content);
     setPending((p) => p.filter((f) => f.content !== part.content));
   };
 
@@ -455,9 +471,20 @@ export default function ChatScreen({
                   <button type="button" className="tutor__copy" onClick={handleCopy}>
                     {copied ? 'Copied' : 'Copy'}
                   </button>
-                  <button type="button" className="tutor__copy" onClick={handleDownload}>
-                    Download
-                  </button>
+                  {kind === 'math' ? (
+                    <>
+                      <button type="button" className="tutor__copy" onClick={() => handleDownload('docx')}>
+                        Word
+                      </button>
+                      <button type="button" className="tutor__copy" onClick={() => handleDownload('pdf')}>
+                        PDF
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" className="tutor__copy" onClick={() => handleDownload()}>
+                      Download
+                    </button>
+                  )}
                 </>
               )}
             </header>

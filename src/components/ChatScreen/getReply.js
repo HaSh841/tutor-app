@@ -19,6 +19,19 @@ const IMAGE_RULES =
   'before answering: read the axes, labels, scale, curves, marked points and any text in them. ' +
   'Never invent values you cannot see: if something is unclear, say so. '
 
+// lets the AI put a drawn graph inside a Word or PDF file
+const GRAPH_FILE_RULES =
+  'When the user asks for a graph or plot inside a Word or PDF file (for example "generate the graph and its answers"), ' +
+  'add the graph with ONE line of exactly this form, alone on its own line, with valid JSON written on a single line: ' +
+  '[[graph: {"title":"Graph of f(x) = x^2 - 4x","xMin":-2,"xMax":6,"yMin":-6,"yMax":12,' +
+  '"curves":[{"label":"f(x) = x^2 - 4x","expr":"x^2 - 4*x"}],' +
+  '"points":[{"x":2,"y":-4,"label":"Vertex (2, -4)"}]}]] ' +
+  'In "expr" write y as a function of x in plain syntax (x^2 - 4*x, sqrt(x), abs(x), sin(x), log(x), pi, e, and * for multiplying). ' +
+  'Use at most 3 curves and 8 points. Put the graph line right after the problem it belongs to, ' +
+  'and write the full worked answer under it. Give an answer for every problem. ' +
+  'If a problem cannot be drawn as y = f(x), write no graph line for it. ' +
+  'The graph line is the only way to add a picture: never put that JSON anywhere else. '
+
 const FILE_RULES =
   'When the user asks for a file, put the full content in ONE fenced code block and briefly say what it is. ' +
   'For code, use the language name (python, javascript, html...). ' +
@@ -30,6 +43,7 @@ const FILE_RULES =
   'return the COMPLETE updated file (never only the changed parts) in ONE fenced block of the same type ' +
   '(the same language for code, ```docx for a Word file, ```pdf for a PDF, ```xlsx for a spreadsheet), ' +
   'and say in one sentence what you changed. If they only ask a question about the file, just answer it. ' +
+  GRAPH_FILE_RULES +
   IMAGE_RULES
 
 // the restriction: the tutor only teaches its own subject

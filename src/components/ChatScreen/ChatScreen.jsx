@@ -6,7 +6,7 @@ import { saveFile, downloadLesson } from './exportDocument';
 import { playReplySound } from './playSound';
 import { saveSession } from '../../data/sessionApi';
 import { getTutor } from '../../data/tutors';
-import { kindOf } from './lessonKind';
+import { kindOf } from './LessonKind';
 import GraphButton from './GraphButton';
 import SampleBox from './SampleBox';
 import AttachControl from './AttachControl';

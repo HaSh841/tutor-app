@@ -7,7 +7,7 @@
 //   { title, language, summary, code, notes, flow, result, samples, problem, answer, graph }
 
 import { tutors } from '../../data/tutors'
-import { kindOf } from './lessonKind'
+import { kindOf } from './LessonKind'
 
 // tried in order; if one is overloaded, the next is used
 // (if a name gives a 404, replace it with the exact name shown in AI Studio)

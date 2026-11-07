@@ -69,26 +69,29 @@
   opacity: 1;
 }
 
-/* ---------- the box: exactly as big as the cards inside it ---------- */
+/* ---------- the box: exactly as big as the cards inside it, transparent inside ---------- */
 .tutor-pick__box {
   display: flex;                      /* cards side by side, no gap */
   overflow: hidden;                   /* nothing sticks out of the box */
-  background: #000;
+  background: transparent;            /* see-through: the blurred menu shows behind the characters */
   border: 1px solid rgba(255, 255, 255, 0.28);   /* thin outline around the WHOLE box only */
+  /* parallax: ONLY the box moves and tilts with the cursor */
   transform:
     perspective(900px)
     translate3d(calc(var(--mx) * 6px), calc(var(--my) * 4px), 0)
     rotateY(calc(var(--mx) * 5deg))
     rotateX(calc(var(--my) * -5deg));
-  transition: transform 0.3s ease-out, box-shadow 0.4s;
+  transition: transform 0.4s ease-out, box-shadow 0.4s;
   will-change: transform;
 }
 
+/* once a card is clicked the box stops moving and settles flat */
 .tutor-pick--picked .tutor-pick__box {
+  transform: none;
   box-shadow: 0 0 2.4rem rgba(255, 255, 255, 0.25);
 }
 
-/* ---------- the cards: no borders, no gaps, the PNG edges are the only divider ---------- */
+/* ---------- the cards: no borders, no gaps, transparent ---------- */
 .tutor-pick__card {
   position: relative;
   flex: none;
@@ -96,7 +99,7 @@
   aspect-ratio: 1;
   padding: 0;
   overflow: hidden;
-  background: #000;
+  background: transparent;
   border: 0;
   border-radius: 0;
   cursor: pointer;
@@ -107,18 +110,17 @@
   outline-offset: -4px;               /* drawn inside the card so the box stays clean */
 }
 
-/* the character art: bigger than the card, moves opposite to the cursor */
+/* the character art: it does NOT follow the cursor, it only grows a little on hover */
 .tutor-pick__art {
   position: absolute;
-  inset: -9%;                         /* extra room so the edges never show while it moves */
+  inset: -9%;                         /* same framing as before */
   background-repeat: no-repeat;
-  transform: translate3d(calc(var(--mx) * -14px), calc(var(--my) * -9px), 0) scale(1);
+  transform: scale(1);
   transition: transform 0.35s ease-out, filter 0.35s;
-  will-change: transform;
 }
 
 .tutor-pick__card:hover .tutor-pick__art {
-  transform: translate3d(calc(var(--mx) * -14px), calc(var(--my) * -9px), 0) scale(1.06);
+  transform: scale(1.06);
 }
 
 /* the clicked card lights up: a soft glow along its inside edge */

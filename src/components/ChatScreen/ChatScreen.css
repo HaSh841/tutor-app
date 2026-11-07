@@ -780,3 +780,379 @@
     bottom: 3%;
   }
 }
+
+/* =====================================================================
+   Tutoring Mode extras: sample input/output box (coding) and problem,
+   answer and graph (math)
+   ===================================================================== */
+
+.chat {
+  /* where the hopping sample box sits, measured inside the character area */
+  --sample-x: 70%;    /* bigger = further right */
+  --sample-y: 46%;    /* bigger = lower (about the middle of the character) */
+}
+
+/* ---------- the hopping box beside the character (coding tutor) ---------- */
+.chat__samples-anchor {
+  position: absolute;
+  left: var(--sample-x);
+  top: var(--sample-y);
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  translate: calc(var(--mx) * -16px) calc(var(--my) * -8px);   /* follows the character's parallax */
+  transition: opacity 0.35s ease;
+}
+
+.chat__samples-anchor--on {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chat__sample-btn {
+  display: grid;
+  place-items: center;
+  width: clamp(2.6rem, 4.2vw, 3.6rem);
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111;
+  box-shadow: 0 0 1.4rem rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, filter 0.2s;
+}
+
+.chat__sample-btn svg {
+  width: 52%;
+  height: 52%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chat__sample-btn:hover {
+  filter: brightness(0.85);
+}
+
+.chat__sample-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+/* hops (same hop as the file icon) until it has been clicked */
+.chat__sample-btn--hop {
+  animation: chat-hop 0.75s infinite;
+}
+
+.chat__sample-btn--open {
+  background: rgba(20, 24, 30, 0.85);
+  color: #fff;
+  box-shadow: inset 0 0 0 2px #fff, 0 0 1.4rem rgba(255, 255, 255, 0.3);
+}
+
+/* ---------- the sample input / output box ---------- */
+.samples {
+  position: absolute;
+  right: calc(100% + 0.9rem);          /* opens to the left of the hopping box */
+  top: 0;
+  z-index: 3;
+  width: clamp(15rem, 24vw, 21rem);
+  max-height: 60vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.9rem 1.1rem 1rem;
+  overflow-y: auto;
+  background: rgba(28, 32, 40, 0.74);
+  border-top: 1px solid var(--chat-line);
+  border-bottom: 1px solid var(--chat-line);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: var(--chat-text);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+  transform-origin: 100% 0;
+  animation: samples-pop 0.45s cubic-bezier(0.22, 1.3, 0.36, 1) both;   /* pops out of the box */
+}
+
+@keyframes samples-pop {
+  from { opacity: 0; transform: scale(0.6) translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.samples__head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--chat-line);
+}
+
+.samples__title {
+  flex: 1;
+  margin: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.samples__close {
+  padding: 0 0.3rem;
+  background: none;
+  border: 0;
+  color: inherit;
+  font-size: 1.4rem;
+  line-height: 1;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.samples__close:hover {
+  opacity: 1;
+}
+
+.samples__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.samples__tab {
+  padding: 0.1rem 0.7rem;
+  background: none;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.samples__tab--on {
+  background: #fff;
+  border-color: #fff;
+  color: #111;
+}
+
+.samples__block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.samples__label {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.samples__pre {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.5rem;
+  background: rgba(0, 0, 0, 0.45);
+  overflow-x: auto;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  letter-spacing: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.samples__block--out .samples__pre {
+  box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.7);
+}
+
+.samples__note {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  opacity: 0.45;
+}
+
+/* ---------- math tutor: problem, solution, answer ---------- */
+.tutor__problem {
+  margin: 0 0 0.7rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--chat-line);
+  border-radius: 0.5rem;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.tutor__problem .tutor__sub {
+  margin: 0 0 0.35rem;
+}
+
+.tutor__problem-text {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  letter-spacing: 0.02em;
+  white-space: pre-wrap;
+}
+
+.tutor__sub--first {
+  margin-top: 0.2rem;
+}
+
+.tutor__answer {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  margin: 0.7rem 0 0;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.tutor__answer-label {
+  flex: none;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.tutor__answer strong {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- math tutor: the graph ---------- */
+.graph {
+  margin: 0;
+}
+
+.graph__title {
+  margin: 0 0 0.4rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.03em;
+  opacity: 0.85;
+}
+
+.graph__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.graph__grid {
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 1;
+}
+
+.graph__axis {
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 1.4;
+}
+
+.graph__tick {
+  fill: rgba(255, 255, 255, 0.6);
+  font-family: inherit;
+  font-size: 10px;
+}
+
+/* each curve draws itself in */
+.graph__curve {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1 2;
+  stroke-dashoffset: 1;
+  animation: graph-draw 1.3s ease-out both;
+}
+
+@keyframes graph-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.graph__point {
+  animation: graph-fade 0.4s ease both;
+}
+
+@keyframes graph-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.graph__point circle {
+  fill: #fff;
+  stroke: #111;
+  stroke-width: 1.5;
+}
+
+.graph__point text {
+  fill: #fff;
+  font-family: inherit;
+  font-size: 11px;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.75);
+  stroke-width: 3px;
+}
+
+.graph__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.9rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+}
+
+.graph__chip {
+  display: inline-block;
+  width: 0.9rem;
+  height: 0.25rem;
+  margin-right: 0.4rem;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+.graph__status {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graph__curve {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .graph__point {
+    animation: none;
+  }
+}
+
+/* narrow screens */
+@media (max-width: 700px) {
+  .chat {
+    --sample-x: 78%;
+    --sample-y: 24%;
+  }
+
+  .samples {
+    width: min(20rem, 72vw);
+  }
+}

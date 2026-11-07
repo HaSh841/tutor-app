@@ -103,7 +103,8 @@ export default function App() {
   const [tutorId, setTutorId] = useState(getTutor().id);   // the chosen tutor
   const [tutorPick, setTutorPick] = useState(false);       // the "choose your tutor" box
   const [loadPrompt, setLoadPrompt] = useState(false);   // "enter codename" box on the main menu
-  // key restarts the chat screen; messages is a loaded history (null = brand new chat)
+  // key restarts the chat screen; messages is a loaded history (null = brand new chat);
+  // tutorHistory is the loaded Tutoring Mode history (null = none)
   const [chatData, setChatData] = useState({ key: 0, messages: null, tutorHistory: null });
   const sfxVolumeRef = useRef(0.8);                  // lets playClick read the latest level
   const busyRef = useRef(false);                     // true while a screen change runs
@@ -256,7 +257,11 @@ export default function App() {
     // these are ready long before the screen swaps in (the fade takes seconds)
     setCodename(name);
     setTutorId(getSavedTutorId(name));             // the tutor this codename was started with
-   setChatData((d) => ({ key: d.key + 1, messages: result.messages, tutorHistory: result.tutorHistory }));
+    setChatData((d) => ({
+      key: d.key + 1,
+      messages: result.messages,
+      tutorHistory: result.tutorHistory,
+    }));
     return '';
   };
 
@@ -280,7 +285,11 @@ export default function App() {
       // black: swap in the loaded session (the chat screen restarts with its intro animation)
       setCodename(name);
       setTutorId(getSavedTutorId(name));
-      setChatData((d) => ({ key: d.key + 1, messages: result.messages }));
+      setChatData((d) => ({
+        key: d.key + 1,
+        messages: result.messages,
+        tutorHistory: result.tutorHistory,
+      }));
       setCurtain(false);                           // fade back in
 
       setTimeout(() => {
@@ -303,7 +312,7 @@ export default function App() {
   const handleCodename = (name) => {
     setCodename(name);
     rememberTutor(name, tutorId);    // so Load Session brings back the same tutor
-    setChatData((d) => ({ key: d.key + 1, messages: null }));   // a brand new chat
+    setChatData((d) => ({ key: d.key + 1, messages: null, tutorHistory: null }));   // a brand new chat
     busyRef.current = true;          // ignore everything else while it closes
     setShutter(true);
   };

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { tutors } from '../../data/tutors';
+import useParallax from '../../hooks/useParallax';
 import './TutorSelect.css';
 
 // how much of the character shows in the square card, compared with the small round icon
@@ -10,7 +11,7 @@ const CARD_ZOOM = 0.55;
 // background blurs and a confirm question appears under the box.
 // Yes -> onConfirm(tutor). No / Esc / click outside -> back to the cards.
 export default function TutorSelect({ onConfirm, onClose }) {
-  const rootRef = useRef(null);
+  const rootRef = useParallax();                 // sets --mx and --my from the cursor or phone tilt
   const [picked, setPicked] = useState(null);       // id of the clicked tutor, or null
 
   useEffect(() => {
@@ -23,29 +24,12 @@ export default function TutorSelect({ onConfirm, onClose }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [picked, onClose]);
 
-  // parallax: the cursor position (-1 to 1 from the screen center) goes into --mx and --my
-  const handleMove = (e) => {
-    const el = rootRef.current;
-    if (!el) return;
-    el.style.setProperty('--mx', ((e.clientX / window.innerWidth - 0.5) * 2).toFixed(3));
-    el.style.setProperty('--my', ((e.clientY / window.innerHeight - 0.5) * 2).toFixed(3));
-  };
-
-  const handleLeave = () => {
-    const el = rootRef.current;
-    if (!el) return;
-    el.style.setProperty('--mx', '0');
-    el.style.setProperty('--my', '0');
-  };
-
   const chosen = tutors.find((t) => t.id === picked) ?? null;
 
   return (
     <div
       ref={rootRef}
       className={`tutor-pick ${chosen ? 'tutor-pick--picked' : ''}`}
-      onMouseMove={handleMove}
-      onMouseLeave={handleLeave}
     >
       {/* the background: dims, and blurs once a card is clicked */}
       <div

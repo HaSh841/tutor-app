@@ -1,0 +1,31 @@
+/* where the hopping button sits, in screen height: keep in step with --sample-y in ChatScreen.css */
+.chat {
+  --sample-y-vh: 46vh;
+}
+
+/* graph popup (math tutor): always fits inside the screen */
+.samples.graphbox {
+  width: clamp(20rem, 32vw, 30rem);
+  top: calc(1.5rem - var(--sample-y-vh));       /* lifts the box up to the top of the screen */
+  max-height: calc(100vh - 3rem);               /* never taller than the screen */
+  overflow-y: auto;
+}
+
+/* the picture shrinks to fit the height left over, so any graph shows completely */
+.samples.graphbox .graph__svg {
+  max-height: calc(100vh - 14rem);
+}
+
+@media (max-width: 700px) {
+  .chat {
+    --sample-y-vh: 24vh;                        /* same as --sample-y: 24% on narrow screens */
+  }
+
+  .samples.graphbox {
+    width: min(20rem, 70vw);
+  }
+
+  .samples.graphbox .graph__svg {
+    max-height: calc(100vh - 16rem);
+  }
+}

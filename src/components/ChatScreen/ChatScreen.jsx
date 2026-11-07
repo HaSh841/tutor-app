@@ -5,8 +5,8 @@ import { splitReply, extFor, saveBlock } from './downloadFile';
 import { playReplySound } from './playSound';
 import { saveSession } from '../../data/sessionApi';
 import { getTutor } from '../../data/tutors';
-import { kindOf } from './LessonKind';
-import MathGraph from './MathGraph';
+import { kindOf } from './lessonKind';
+import GraphButton from './GraphButton';
 import SampleBox from './SampleBox';
 import LoadPrompt from '../LoadPrompt/LoadPrompt';
 import './ChatScreen.css';
@@ -80,6 +80,9 @@ export default function ChatScreen({
   // coding tutor: the sample runs of the current lesson, and whether the hopping box shows
   const samples = kind === 'code' && lesson ? lesson.samples : [];
   const showSample = mode === 'tutor' && !tutorWaiting && samples.length > 0;
+
+  // math tutor: the graph of the current lesson (null hides the hopping graph button)
+  const graph = kind === 'math' && mode === 'tutor' && !tutorWaiting && lesson ? lesson.graph : null;
 
   // keep the newest message in view
   useEffect(() => {
@@ -305,27 +308,32 @@ export default function ChatScreen({
         </button>
 
         {/* coding tutor: a box hops beside the character; click it to see the sample input and output */}
-        <div className={`chat__samples-anchor ${showSample ? 'chat__samples-anchor--on' : ''}`}>
-          <button
-            type="button"
-            className={`chat__sample-btn ${
-              showSample && !sampleSeen ? 'chat__sample-btn--hop' : ''
-            } ${sampleOpen ? 'chat__sample-btn--open' : ''}`}
-            onClick={toggleSamples}
-            aria-label="Show sample input and output"
-            aria-expanded={sampleOpen}
-            tabIndex={showSample ? 0 : -1}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <polyline points="5 8 10 12 5 16" />
-              <line x1="12" y1="17" x2="19" y2="17" />
-            </svg>
-          </button>
+        {kind === 'code' && (
+          <div className={`chat__samples-anchor ${showSample ? 'chat__samples-anchor--on' : ''}`}>
+            <button
+              type="button"
+              className={`chat__sample-btn ${
+                showSample && !sampleSeen ? 'chat__sample-btn--hop' : ''
+              } ${sampleOpen ? 'chat__sample-btn--open' : ''}`}
+              onClick={toggleSamples}
+              aria-label="Show sample input and output"
+              aria-expanded={sampleOpen}
+              tabIndex={showSample ? 0 : -1}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <polyline points="5 8 10 12 5 16" />
+                <line x1="12" y1="17" x2="19" y2="17" />
+              </svg>
+            </button>
 
-          {showSample && sampleOpen && (
-            <SampleBox key={lessonN} samples={samples} onClose={() => setSampleOpen(false)} />
-          )}
-        </div>
+            {showSample && sampleOpen && (
+              <SampleBox key={lessonN} samples={samples} onClose={() => setSampleOpen(false)} />
+            )}
+          </div>
+        )}
+
+        {/* math tutor: a box hops beside the character; click it to pop up the graph */}
+        {kind === 'math' && <GraphButton key={lessonN} graph={graph} />}
       </div>
 
       {/* chat box: slides in from the right */}
@@ -415,7 +423,7 @@ export default function ChatScreen({
         aria-hidden={mode !== 'tutor'}
       >
         <div className="tutor">
-          {/* upper box: the raw code (coding tutor) or problem, solution, answer and graph (math tutor) */}
+          {/* upper box: the raw code (coding tutor) or problem, solution and answer (math tutor) */}
           <section className="tutor__box tutor__box--code chat__slide">
             <header className="tutor__head">
               <h3 className="tutor__title">{lesson ? lesson.title : 'Tutoring Mode'}</h3>
@@ -459,20 +467,12 @@ export default function ChatScreen({
                     </code>
                   </pre>
 
-                  {/* math tutor: the final answer */}
+                  {/* math tutor: the final answer (the graph now lives in the hopping box) */}
                   {kind === 'math' && lesson.answer && (
                     <div className="tutor__answer">
                       <span className="tutor__answer-label">Answer</span>
                       <strong>{lesson.answer}</strong>
                     </div>
-                  )}
-
-                  {/* math tutor: the graph, when there is one */}
-                  {kind === 'math' && lesson.graph && (
-                    <>
-                      <h4 className="tutor__sub">Graph</h4>
-                      <MathGraph key={lessonN} graph={lesson.graph} />
-                    </>
                   )}
 
                   {lesson.notes.length > 0 && (

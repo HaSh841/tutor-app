@@ -6,7 +6,7 @@
 //   { title, language, summary, code, notes, flow, result, samples, problem, answer, graph }
 
 import { tutors } from '../../data/tutors'
-import { kindOf } from './LessonKind'
+import { kindOf } from './lessonKind'
 
 // tried in order; if one is overloaded, the next is used
 // (if a name gives a 404, replace it with the exact name shown in AI Studio)
@@ -43,8 +43,9 @@ const CODE_KEYS =
 const MATH_KEYS =
   '"problem" (one practice problem about the topic, with every number it needs, in plain text), ' +
   '"answer" (the final answer only, short, with units if there are any), ' +
-  '"graph" (null unless a graph really helps to see the problem or its solution; otherwise an object with ' +
-  '"title" (string), "xMin", "xMax", "yMin", "yMax" (numbers that frame the interesting part), ' +
+  '"graph" (null only if the topic truly cannot be drawn as y = f(x); otherwise an object with ' +
+  '"title" (string), "xMin", "xMax", "yMin", "yMax" (numbers that frame the interesting part, ' +
+  'leaving a little empty room below the lowest marked point), ' +
   '"curves" (an array of up to 3 objects with "label" and "expr", where expr is y written as a function of x ' +
   'in plain syntax such as x^2 - 4, sqrt(x), abs(x), sin(x), log(x) for the natural log, pi, e, and * for multiplying) and ' +
   '"points" (an array of up to 8 objects with "x", "y" and "label" for the points worth marking, such as intercepts, the vertex or the solution). ' +
@@ -68,7 +69,9 @@ const lessonPrompt = (t) => {
     '"result" (one sentence: what is finally produced or answered, include a sample value if you can), ' +
     (math ? MATH_KEYS : CODE_KEYS) +
     'Write all text as plain text: never use LaTeX or $ signs, write math like x^2 + 3x - 4 = 0. ' +
+    'Everything must be consistent: "problem", "code", "answer", "flow" and "graph" must all use the SAME function and the SAME numbers. ' +
     'If the user asks a follow-up, answer it with a new full lesson in the same format.'
+    
   )
 }
 

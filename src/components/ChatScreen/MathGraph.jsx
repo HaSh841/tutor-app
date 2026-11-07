@@ -26,7 +26,7 @@ function cleanExpr(raw) {
     .replace(/\bln\s*\(/g, 'log(');
 
   if (!s || s.length > 120) return null;
-  if (!/^[0-9a-z_+*/^().,\s-]*$/.test(s)) return null;   // fixed: no unnecessary escapes
+  if (!/^[0-9a-z_+*/^().,\s-]*$/.test(s)) return null;
   const names = s.match(/[a-z_][a-z0-9_]*/g) ?? [];
   return names.every((n) => ALLOWED.has(n)) ? s : null;
 }
@@ -236,13 +236,16 @@ export default function MathGraph({ graph }) {
           )}
         </g>
 
-        {/* marked points */}
+        {/* marked points (the label is kept inside the plot so it never sits on the edge) */}
         {d.points.map((p, i) => (
           <g key={i} className="graph__point" style={{ animationDelay: `${0.9 + i * 0.08}s` }}>
             <circle cx={p.px} cy={p.py} r="4" />
             <text
               x={p.px}
-              y={p.py < PAD.t + 18 ? p.py + 18 : p.py - 9}
+              y={Math.min(
+                Math.max(p.py < PAD.t + 18 ? p.py + 18 : p.py - 9, PAD.t + 10),
+                bottom - 6
+              )}
               textAnchor={p.px > W - 70 ? 'end' : p.px < PAD.l + 40 ? 'start' : 'middle'}
             >
               {p.label || `(${nice(p.x)}, ${nice(p.y)})`}

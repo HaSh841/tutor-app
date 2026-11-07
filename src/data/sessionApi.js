@@ -1,8 +1,9 @@
 // Saves and loads chats by codename in the Firebase Realtime Database: sessions/<codename>
 
-import { get, ref, serverTimestamp, set } from 'firebase/database'
+import { get, ref, serverTimestamp, update } from 'firebase/database'
 import { db } from './firebase'
 import { checkCodename } from './codename'
+import { rememberTutorLocally } from './tutors'
 
 const TIMEOUT_MS = 10000
 const MAX_MESSAGES = 1000
@@ -29,8 +30,13 @@ export async function loadSession(codename) {
     const snap = await withTimeout(get(sessionRef(codename)))
     if (!snap.exists()) return { ok: false, notFound: true }
 
+    const data = snap.val()
+
+    // the tutor this session was started with (saved in the database, so any device gets it)
+    if (typeof data?.tutorId === 'string') rememberTutorLocally(codename, data.tutorId)
+
     // Firebase hands lists back as arrays, or as objects when it has gaps
-    const raw = snap.val()?.messages
+    const raw = data?.messages
     const list = Array.isArray(raw) ? raw : raw ? Object.values(raw) : []
 
     return {
@@ -50,8 +56,9 @@ export async function saveSession(codename, messages) {
   if (!db || !valid(codename)) return false
 
   try {
+    // update (not set), so the saved tutor next to the messages stays
     await withTimeout(
-      set(sessionRef(codename), {
+      update(sessionRef(codename), {
         messages: messages.slice(-MAX_MESSAGES).map((m, i) => ({
           id: Number.isFinite(m.id) ? m.id : i,
           role: m.role,

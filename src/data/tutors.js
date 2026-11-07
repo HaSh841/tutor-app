@@ -6,6 +6,10 @@
 //   x / y = which point of the png is shown, in % (y smaller = picture moves DOWN in the card,
 //           y bigger = picture moves UP; x smaller = picture moves right, x bigger = picture moves left)
 
+import { ref, update } from 'firebase/database';
+import { db } from './firebase';
+import { checkCodename } from './codename';
+
 export const tutors = [
   {
     id: 'eterna',
@@ -79,14 +83,26 @@ export const tutors = [
 export const getTutor = (id) => tutors.find((t) => t.id === id) ?? tutors[0]
 
 // remembers which tutor a codename uses, so Load Session brings back the same tutor
-// (stored in this browser only)
 const key = (codename) => `tutor:${codename}`
 
-export function rememberTutor(codename, id) {
+// this device only (used right after a session is loaded)
+export function rememberTutorLocally(codename, id) {
   try {
     localStorage.setItem(key(codename), id)
   } catch {
     /* storage not allowed: the first tutor is used next time */
+  }
+}
+
+// on this device AND in the database, so Load Session also works on another phone or in the app
+export function rememberTutor(codename, id) {
+  rememberTutorLocally(codename, id)
+
+  if (!db || checkCodename(codename) !== '') return
+  try {
+    update(ref(db, `sessions/${codename}`), { tutorId: id }).catch(() => {})
+  } catch {
+    /* the database did not accept the path: the tutor is only kept on this device */
   }
 }
 

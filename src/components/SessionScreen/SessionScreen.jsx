@@ -8,22 +8,10 @@ const CHAR_MS = 45;          // time per letter at normal speed
 const AUTO_DELAY_MS = 1800;  // pause before auto play moves to the next line
 const SPEEDS = [2, 3, 4];
 
-// voice files: line 1 plays line1.mp3, line 2 plays line2.mp3, and so on
-const VOICE_DIR = '/resources/voice';
-// optional: list exact paths to override the numbering, e.g. ['/resources/voice/hello.mp3', ...]
-const VOICES = [
-  '/resources/voice/line1.mp3',
-  '/resources/voice/line2.mp3',
-  '/resources/voice/line3.mp3',
-  '/resources/voice/line4.mp3',
-  '/resources/voice/line5.mp3',
-];
-
-const voiceFor = (i) => VOICES[i] ?? `${VOICE_DIR}/line${i + 1}.mp3`;
-
 export default function SessionScreen({
   character = '/resources/Civilight_Eterna.png',
   lines = [],
+  voices = [],                                    // voice file paths, one per line (from the tutor)
   voiceVolume = 1,                                // 0 to 1, comes from the SFX slider
   onBack,
   onCodename,                                     // called with the codename once confirmed
@@ -49,7 +37,9 @@ export default function SessionScreen({
   const line = lines[index] ?? '';
   const done = shown >= line.length;
   const isLast = index >= lines.length - 1;
-  const voiceDone = voiceDoneIndex === index;        // true once the current line's voice has ended
+  const hasVoice = Boolean(voices[index]);
+  // a line with no voice file counts as "voice finished", so Auto Play never waits on it
+  const voiceDone = !hasVoice || voiceDoneIndex === index;
 
   // the codename box appears once the last line has finished typing
   const promptReady = Boolean(onCodename) && done && isLast;
@@ -58,12 +48,14 @@ export default function SessionScreen({
 
   // voice: plays each time the dialog moves to a new line, and stops the previous one
   useEffect(() => {
-    playVoice(voiceFor(index), {
+    const src = voices[index];
+    if (!src) return;                  // no voice for this line, nothing to play
+    playVoice(src, {
       volume: voiceVolume,
       onEnd: () => setVoiceDoneIndex(index),
     });
     return () => stopVoice();
-  }, [index, voiceVolume]);
+  }, [index, voiceVolume, voices]);
 
   // typewriter
   useEffect(() => {

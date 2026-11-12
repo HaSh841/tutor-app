@@ -5,6 +5,9 @@
 //   zoom = how zoomed in (bigger = closer to the face, less body)
 //   x / y = which point of the png is shown, in % (y smaller = picture moves DOWN in the card,
 //           y bigger = picture moves UP; x smaller = picture moves right, x bigger = picture moves left)
+//
+// voices: one audio file per line in sessionLines, in the same order.
+//   If a tutor has fewer voice files than lines, the missing lines are simply silent.
 
 import { ref, update } from 'firebase/database';
 import { db } from './firebase';
@@ -32,6 +35,14 @@ export const tutors = [
       'But, rest assured i will help you regain everything.',
       'I will be right here with you.',
       'Can you tell me your name doctor?',
+    ],
+    // voice files for the session lines above (same order)
+    voices: [
+      '/resources/voice/line1.mp3',
+      '/resources/voice/line2.mp3',
+      '/resources/voice/line3.mp3',
+      '/resources/voice/line4.mp3',
+      '/resources/voice/line5.mp3',
     ],
     // Tutoring Mode texts
     askPlaceholder: 'Teach me a code...',
@@ -64,6 +75,13 @@ export const tutors = [
       'Numbers are easy once you see how they fit together.',
       'I will be right here to guide you.',
       'Can you tell me your name doctor?',
+    ],
+    // her own voice files, in a separate folder so they never mix with Eterna's
+    voices: [
+      '/resources/voice/prts_line1.mp3',
+      '/resources/voice/prts_line2.mp3',
+      '/resources/voice/prts_line3.mp3',
+      '/resources/voice/prts_line4.mp3',
     ],
     askPlaceholder: 'Teach me a math topic...',
     tutoringTag: 'Solution',

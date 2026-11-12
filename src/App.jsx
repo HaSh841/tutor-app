@@ -447,6 +447,7 @@ export default function App() {
         <SessionScreen
           character={tutor.image}
           lines={tutor.sessionLines}
+          voices={tutor.voices}
           voiceVolume={sfxVolume / 100}
           onBack={returnToMenu}
           onCodename={handleCodename}

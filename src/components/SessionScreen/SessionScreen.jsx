@@ -37,7 +37,8 @@ export default function SessionScreen({
   const line = lines[index] ?? '';
   const done = shown >= line.length;
   const isLast = index >= lines.length - 1;
-  const hasVoice = Boolean(voices[index]);
+  const src = voices[index];                         // voice file for the current line (may be undefined)
+  const hasVoice = Boolean(src);
   // a line with no voice file counts as "voice finished", so Auto Play never waits on it
   const voiceDone = !hasVoice || voiceDoneIndex === index;
 
@@ -48,14 +49,13 @@ export default function SessionScreen({
 
   // voice: plays each time the dialog moves to a new line, and stops the previous one
   useEffect(() => {
-    const src = voices[index];
     if (!src) return;                  // no voice for this line, nothing to play
     playVoice(src, {
       volume: voiceVolume,
       onEnd: () => setVoiceDoneIndex(index),
     });
     return () => stopVoice();
-  }, [index, voiceVolume, voices]);
+  }, [src, index, voiceVolume]);
 
   // typewriter
   useEffect(() => {
